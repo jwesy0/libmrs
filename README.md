@@ -1,5 +1,7 @@
+# libmrs
+
 Lightweight C library for management of .MRS archives from [GunZ: The Duel](https://en.wikipedia.org/wiki/GunZ:_The_Duel).
 
-TODO:
+## **TODO**:
 - Port to Linux
 - Function to get error strings
