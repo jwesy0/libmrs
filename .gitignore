@@ -3,3 +3,9 @@
 /vs/libmrs
 /build
 /tests
+/doc/htm
+doc/libmrs.chw
+doc/libmrs.hhk
+doc/libmrs.hhp
+/doc/txt
+doc/libmrs.hhc
