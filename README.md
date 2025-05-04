@@ -3,5 +3,5 @@
 Lightweight C library for management of .MRS archives from [GunZ: The Duel](https://en.wikipedia.org/wiki/GunZ:_The_Duel).
 
 ## **TODO**:
-- Port to Linux
+- Port to Linux, at least...
 - Function to get error strings
