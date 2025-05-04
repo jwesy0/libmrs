@@ -1766,3 +1766,10 @@ int mrs_global_list_free(MRSFILE f){
     
     return MRSE_OK;
 }
+
+/*******************************
+    Other functions
+*******************************/
+const char* mrs_get_error_str(unsigned e){
+    return e < MRSE_END ? mrs_error_str[e] : NULL;
+}

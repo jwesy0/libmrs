@@ -24,5 +24,26 @@
 #define MRSE_EMPTY              14 /**< Empty MRS file */
 #define MRSE_NO_MORE_FILES      15 /**< No more files */
 #define MRSE_CANNOT_UNCOMPRESS  16 /**< Error while trying to uncompress file */
+#define MRSE_END                17
+
+const char* mrs_error_str[] = {
+    "Ok",
+    "Unitialized MRS handle.",
+    "Invalid parameter.",
+    "File not found.",
+    "Cannot open file.",
+    "Invalid output file name.",
+    "Duplicate file found.",
+    "Out of bound index.",
+    "Insufficient memory.",
+    "Empty folder.",
+    "Invalid MRS file or invalid encryption.",
+    "Invalid MRS encryption.",
+    "Given info not available or set.",
+    "Cannot save file.",
+    "Empty MRS file.",
+    "No more files.",
+    "Cannot uncompress file."
+};
 
 #endif

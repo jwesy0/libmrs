@@ -23,43 +23,12 @@
 #define LIBMRS_DLLF
 #endif
 
-/**
- * \brief Initializes a new MRS handle
- * \return A valid MRS handle on success, if any error ocurrs, a `NULL` pointer is returned
- */
 LIBMRS_DLLF MRS* mrs_init();
 
-/**
- * \brief Set decryption functions for the current MRS handle
- * \param mrs Pointer to the MRS handle to apply the changes for
- * \param where Must be a combination of `enum mrs_encryption_where_t` values
- * \param f Decryption function to be applied to the fields indicated in `where`,
- *          if a `NULL` pointer is given, the default decryption function, `mrs_default_decrypt`, will be set
- * \return `MRSE_OK` on success, any different error code when an error occurs
- */
 LIBMRS_DLLF int mrs_set_decryption(MRS* mrs, int where, MRS_ENCRYPTION_FUNC f);
 
-/**
- * \brief Set encryption functions for the current MRS handle
- * \param mrs Pointer to the MRS handle to apply the changes for
- * \param where Must be a combination of `enum mrs_encryption_where_t` values
- * \param f Encryption function to be applied to the fields indicated in `where`,
- *          if a `NULL` pointer is given, the default encryption function, `mrs_default_encrypt`, will be set
- * \return `MRSE_OK` on success, any different error code when an error occurs
- */
 LIBMRS_DLLF int mrs_set_encryption(MRS* mrs, int where, MRS_ENCRYPTION_FUNC f);
 
-/**
- * \brief Add a new item (file, directory or mrs archive) to the the current MRS handle
- * \param mrs Pointer to the MRS handle to apply the changes for
- * \param what Indicates what kind of item to add to `mrs`
- * \param name Name of the item to add to `mrs`
- * \param final_name Name of the item after being added to `mrs`.
- *                   If `what` is `MRSA_FILE`, this parameter sets the final name of the file in the MRS handle, if a `NULL` pointer is given, the final name will be the same as the one given in `name`.
- *                   If `what` is `MRSA_FOLDER` or `MRSA_MRS`, this parameters sets the base folder name of the files in the MRS handle, if a `NULL` pointer is given, no base name will be set to the files.
- * \param on_dupe Indicates what to do when a duplicate is found
- * \return `MRSE_OK` on success, any different error code when an error occurs
- */
 LIBMRS_DLLF int mrs_add(MRS* mrs, enum mrs_add_t what, const char* name, const char* final_name, enum mrs_dupe_behavior_t on_dupe);
 
 LIBMRS_DLLF int mrs_set_signature(MRS* mrs, int where, uint32_t signature);
@@ -82,10 +51,6 @@ LIBMRS_DLLF int mrs_find_file(const MRS* mrs, const char* s, unsigned* index);
 
 LIBMRS_DLLF size_t mrs_get_file_count(const MRS* mrs);
 
-/**
- * \brief Frees a MRS handle
- * \param mrs Pointer to the MRS handle to be freed
- */
 LIBMRS_DLLF void mrs_free(MRS* mrs);
 
 LIBMRS_DLLF int mrs_global_compile(const char* name, const char* out_name, struct mrs_encryption_t* encryption, struct mrs_signature_t* sig, MRS_PROGRESS_FUNC pcallback);
@@ -97,6 +62,9 @@ LIBMRS_DLLF int mrs_global_list(const char* name, struct mrs_encryption_t* decry
 LIBMRS_DLLF int mrs_global_list_next(MRSFILE f);
 
 LIBMRS_DLLF int mrs_global_list_free(MRSFILE f);
+
+///TODO: Add to documentation
+LIBMRS_DLLF const char* mrs_get_error_str(int e);
 
 #endif
 
