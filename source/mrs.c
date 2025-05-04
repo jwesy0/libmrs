@@ -1770,6 +1770,27 @@ int mrs_global_list_free(MRSFILE f){
 /*******************************
     Other functions
 *******************************/
+
+const char* mrs_error_str[] = {
+    "Ok",
+    "Unitialized MRS handle.",
+    "Invalid parameter.",
+    "File not found.",
+    "Cannot open file.",
+    "Invalid output file name.",
+    "Duplicate file found.",
+    "Out of bound index.",
+    "Insufficient memory.",
+    "Empty folder.",
+    "Invalid MRS file or invalid encryption.",
+    "Invalid MRS encryption.",
+    "Given info not available or set.",
+    "Cannot save file.",
+    "Empty MRS file.",
+    "No more files.",
+    "Cannot uncompress file."
+};
+
 const char* mrs_get_error_str(unsigned e){
     return e < MRSE_END ? mrs_error_str[e] : NULL;
 }
