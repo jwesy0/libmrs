@@ -7,3 +7,4 @@ Lightweight C library for management of .MRS archives from [GunZ: The Duel](http
 ### **TODO**:
 - Port to Linux, at least;
 - Reference count for Local/Central Dir headers' extra/comment fields;
+- Release dynamic libraries
