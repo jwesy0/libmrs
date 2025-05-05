@@ -250,12 +250,17 @@ void _mrs_ref_table_init(struct mrs_ref_table_t* r) {
     r->count = 0;
 }
 
-unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r, unsigned char* s, size_t len) {
+unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r, const unsigned char* s, size_t len) {
     unsigned i;
     struct mrs_ref_t* cur;
 
     if (!r || !s)
         return NULL;
+
+#ifdef _LIBMRS_DBG
+    dbgprintf("Looking for: ");
+    _hex_dump(s, len);
+#endif
     
     for (i = 0; i < r->count; i++) {
         cur = &r->refs[i];
@@ -335,7 +340,7 @@ void _mrs_ref_table_free_all(struct mrs_ref_table_t* r) {
     r->count = 0;
 }
 
-void _mrs_file_free(struct mrs_file_t* f) {
+void _mrs_file_free(MRS* mrs, struct mrs_file_t* f) {
     if (f->lh.filename != f->dh.filename) {
         dbgprintf("We got different filenames between LOCAL and CENTRAL DIR headers");
         free(f->lh.filename);
@@ -343,11 +348,13 @@ void _mrs_file_free(struct mrs_file_t* f) {
     }
     free(f->dh.filename);
     dbgprintf("Freed CENTRAL DIR filename");
-    if (f->lh.extra != f->dh.extra) {
+    //_mrs_ref_table_free(&mrs->_reftable, f->lh.extra);
+    //dbgprintf("Freed LOCAL extra");
+    /*if (f->lh.extra != f->dh.extra) {
         dbgprintf("We got different extra between LOCAL and CENTRAL DIR headers");
         free(f->lh.extra);
         dbgprintf("Freed LOCAL extra");
-    }
+    }*/
     free(f->dh.extra);
     dbgprintf("Freed CENTRAL DIR extra");
     free(f->dh.comment);
@@ -739,6 +746,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
     struct mrs_encryption_t decrypt;
     unsigned char* dhbuf;
     unsigned char* temp;
+    unsigned char* temp2;
     struct mrs_file_t* mrsfile;
 
     if(final_name){
@@ -790,7 +798,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         if (!mrs_default_signatures(MRSSW_CENTRAL_DIR_HDR, mrsfile[i].dh.h.signature) && (!mrs->_sig || !mrs->_sig(MRSSW_CENTRAL_DIR_HDR, mrsfile[i].dh.h.signature))) {
             dbgprintf("Invalid encryption");
             for (i = 0; i < hdr.dir_count; i++)
-                _mrs_file_free(&mrsfile[i]);
+                _mrs_file_free(mrs, &mrsfile[i]);
             free(mrsfile);
             free(dhbuf);
             fclose(f);
@@ -809,7 +817,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         if (!mrs_default_signatures(MRSSW_LOCAL_HDR, mrsfile[i].lh.h.signature) && (!mrs->_sig || !mrs->_sig(MRSSW_LOCAL_HDR, mrsfile[i].lh.h.signature))) {
             dbgprintf("Invalid local header encryption");
             for (i = 0; i < hdr.dir_count; i++)
-                _mrs_file_free(&mrsfile[i]);
+                _mrs_file_free(mrs, &mrsfile[i]);
             free(mrsfile);
             free(dhbuf);
             fclose(f);
@@ -818,11 +826,15 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
 
         fseek(f, mrsfile[i].lh.h.filename_length, SEEK_CUR);
 
+        //// Reading Local Header "extra" field (if any)
         if (mrsfile[i].lh.h.extra_length) {
             dbgprintf("We have Local extra, let's copy it");
             mrsfile[i].lh.extra = (char*)malloc(mrsfile[i].lh.h.extra_length);
             fread(mrsfile[i].lh.extra, mrsfile[i].lh.h.extra_length, 1, f);
             decrypt.local_hdr(mrsfile[i].lh.extra, mrsfile[i].lh.h.extra_length);
+            temp2 = mrsfile[i].lh.extra;
+            mrsfile[i].lh.extra = _mrs_ref_table_append(&mrs->_reftable, temp2, mrsfile[i].lh.h.extra_length);
+            free(temp2);
             dbgprintf("Read local header extra:");
         }
         else
@@ -846,7 +858,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         mrsfile[i].lh.filename = mrsfile[i].dh.filename;
         temp += mrsfile[i].dh.h.filename_length;
 
-        //// Reading extra (if any)
+        //// Reading Central Dir Header "extra" field (if any)
         if (mrsfile[i].dh.h.extra_length) {
             dbgprintf("We have Central Dir extra, let's copy it");
             mrsfile[i].dh.extra = (char*)malloc(mrsfile[i].dh.h.extra_length);
@@ -854,7 +866,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         }
         temp += mrsfile[i].dh.h.extra_length;
 
-        //// Reading comment (if any)
+        //// Reading Central Dir Header "comment" field (if any)
         if (mrsfile[i].dh.h.comment_length) {
             dbgprintf("We have Central Dir comment, let's copy it");
             mrsfile[i].dh.comment = (char*)malloc(mrsfile[i].dh.h.comment_length);
@@ -1122,13 +1134,12 @@ MRS* mrs_init(){
     memset(mrs, 0, sizeof(struct mrs_t));
     mrs->_ptr = mrs;    
     mrs->_fbuf = tmpfile();
+    _mrs_ref_table_init(&mrs->_reftable);
     if(!mrs->_fbuf){
         dbgprintf("Could not open temp file, let's use memory then");
         mrs->_mtype = MRSMT_MEMORY;
     }
     dbgprintf("mrs handle initialized, we good to go");
-
-    tmpfile();
 
     return mrs;
 }
@@ -1417,7 +1428,7 @@ int mrs_remove(MRS* mrs, unsigned index){
     
     f = &mrs->_files[index];
 
-    _mrs_file_free(f);
+    _mrs_file_free(mrs, f);
 
     dbgprintf("Removing file %u", index);
 
@@ -1489,18 +1500,20 @@ int mrs_set_file_info(MRS* mrs, unsigned index, enum mrs_file_info_t what, const
         f->lh.h.filetime = f->dh.h.filetime;
         break;
     case MRSFI_LHEXTRA:
-        if(f->lh.extra != f->dh.extra)
-            free(f->lh.extra);
+        //if(f->lh.extra != f->dh.extra)
+            //free(f->lh.extra);
+        _mrs_ref_table_free(&mrs->_reftable, f->lh.extra);
         if(!buf || !buf_size){
             f->lh.extra = NULL;
             f->lh.h.extra_length = 0;
         }else{
-            if(buf_size == f->dh.h.extra_length && !memcmp(buf, f->dh.extra, buf_size)){
-                f->lh.extra = f->dh.extra;
-            }else{
-                f->lh.extra = (char*)malloc(buf_size);
-                memcpy(f->lh.extra, buf, buf_size);
-            }
+            f->lh.extra = _mrs_ref_table_append(&mrs->_reftable, buf, buf_size);
+            //if(buf_size == f->dh.h.extra_length && !memcmp(buf, f->dh.extra, buf_size)){
+                //f->lh.extra = f->dh.extra;
+            //}else{
+                //f->lh.extra = (char*)malloc(buf_size);
+                //memcpy(f->lh.extra, buf, buf_size);
+            //}
         }
         break;
     case MRSFI_DHEXTRA:
@@ -1560,10 +1573,11 @@ void mrs_free(MRS* mrs){
 
     dbgprintf("Let's free it");
     
+    _mrs_ref_table_free_all(&mrs->_reftable);
     if(mrs->_files){
         dbgprintf("We got files, %u of them", mrs->_hdr.dir_count);
         for(i=0; i<mrs->_hdr.dir_count; i++){
-            _mrs_file_free(&mrs->_files[i]);
+            _mrs_file_free(mrs, &mrs->_files[i]);
             dbgprintf("  Freed file %u", i);
             /*if (mrs->_files[i].lh.filename != mrs->_files[i].dh.filename) {
                 dbgprintf("We got different filenames between LOCAL and CENTRAL DIR [%u] headers", i);
