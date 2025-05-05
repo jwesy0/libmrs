@@ -63,7 +63,6 @@ LIBMRS_DLLF int mrs_global_list_next(MRSFILE f);
 
 LIBMRS_DLLF int mrs_global_list_free(MRSFILE f);
 
-///TODO: Add to documentation
 LIBMRS_DLLF const char* mrs_get_error_str(unsigned e);
 
 #endif
