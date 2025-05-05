@@ -289,7 +289,7 @@ int _mrs_ref_table_free(struct mrs_ref_table_t* r, unsigned char* s) {
     struct mrs_ref_t* cur;
 
     if (!r || !s)
-        return NULL;
+        return 1;
 
     for (i = 0; i < r->count; i++) {
         cur = &r->refs[i];
@@ -330,6 +330,7 @@ void _mrs_ref_table_free_all(struct mrs_ref_table_t* r) {
     for (i = 0; i < r->count; i++) {
         cur = &r->refs[i];
         free(cur->mem);
+        dbgprintf("Freed %p, which had %u reference%s", cur->mem, cur->ref, cur->ref == 1 ? "" : "s");
         cur->mem = NULL;
         cur->ref = 0;
         cur->len = 0;
@@ -348,17 +349,22 @@ void _mrs_file_free(MRS* mrs, struct mrs_file_t* f) {
     }
     free(f->dh.filename);
     dbgprintf("Freed CENTRAL DIR filename");
+    f->lh.filename = NULL;
+    f->dh.filename = NULL;
+    f->lh.extra    = NULL;
+    f->dh.extra    = NULL;
+    f->dh.comment  = NULL;
     //_mrs_ref_table_free(&mrs->_reftable, f->lh.extra);
     //dbgprintf("Freed LOCAL extra");
     /*if (f->lh.extra != f->dh.extra) {
         dbgprintf("We got different extra between LOCAL and CENTRAL DIR headers");
         free(f->lh.extra);
         dbgprintf("Freed LOCAL extra");
-    }*/
+    }
     free(f->dh.extra);
     dbgprintf("Freed CENTRAL DIR extra");
     free(f->dh.comment);
-    dbgprintf("Freed CENTRAL DIR comment");
+    dbgprintf("Freed CENTRAL DIR comment");*/
 }
 
 int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out){
@@ -835,7 +841,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
             temp2 = mrsfile[i].lh.extra;
             mrsfile[i].lh.extra = _mrs_ref_table_append(&mrs->_reftable, temp2, mrsfile[i].lh.h.extra_length);
             free(temp2);
-            dbgprintf("Read local header extra:");
+            dbgprintf("Read local header extra: got address %p", mrsfile[i].lh.extra);
         }
         else
             fseek(f, mrsfile[i].lh.h.extra_length, SEEK_CUR);
@@ -861,16 +867,18 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         //// Reading Central Dir Header "extra" field (if any)
         if (mrsfile[i].dh.h.extra_length) {
             dbgprintf("We have Central Dir extra, let's copy it");
-            mrsfile[i].dh.extra = (char*)malloc(mrsfile[i].dh.h.extra_length);
-            memcpy(mrsfile[i].dh.extra, temp, mrsfile[i].dh.h.extra_length);
+            /*temp2 = (char*)malloc(mrsfile[i].dh.h.extra_length);
+            memcpy(mrsfile[i].dh.extra, temp, mrsfile[i].dh.h.extra_length);*/
+            mrsfile[i].dh.extra = _mrs_ref_table_append(&mrs->_reftable, temp, mrsfile[i].dh.h.extra_length);
         }
         temp += mrsfile[i].dh.h.extra_length;
 
         //// Reading Central Dir Header "comment" field (if any)
         if (mrsfile[i].dh.h.comment_length) {
             dbgprintf("We have Central Dir comment, let's copy it");
-            mrsfile[i].dh.comment = (char*)malloc(mrsfile[i].dh.h.comment_length);
-            memcpy(mrsfile[i].dh.comment, temp, mrsfile[i].dh.h.comment_length);
+            /*mrsfile[i].dh.comment = (char*)malloc(mrsfile[i].dh.h.comment_length);
+            memcpy(mrsfile[i].dh.comment, temp, mrsfile[i].dh.h.comment_length);*/
+            mrsfile[i].dh.comment = _mrs_ref_table_append(&mrs->_reftable, temp, mrsfile[i].dh.h.comment_length);
         }
         temp += mrsfile[i].dh.h.comment_length;
     }
@@ -1500,14 +1508,13 @@ int mrs_set_file_info(MRS* mrs, unsigned index, enum mrs_file_info_t what, const
         f->lh.h.filetime = f->dh.h.filetime;
         break;
     case MRSFI_LHEXTRA:
-        //if(f->lh.extra != f->dh.extra)
-            //free(f->lh.extra);
         _mrs_ref_table_free(&mrs->_reftable, f->lh.extra);
         if(!buf || !buf_size){
             f->lh.extra = NULL;
             f->lh.h.extra_length = 0;
         }else{
             f->lh.extra = _mrs_ref_table_append(&mrs->_reftable, buf, buf_size);
+            f->lh.h.extra_length = buf_size;
             //if(buf_size == f->dh.h.extra_length && !memcmp(buf, f->dh.extra, buf_size)){
                 //f->lh.extra = f->dh.extra;
             //}else{
@@ -1517,27 +1524,31 @@ int mrs_set_file_info(MRS* mrs, unsigned index, enum mrs_file_info_t what, const
         }
         break;
     case MRSFI_DHEXTRA:
-        if(f->dh.extra != f->lh.extra)
-            free(f->dh.extra);
+        _mrs_ref_table_free(&mrs->_reftable, f->dh.extra);
         if(!buf || !buf_size){
             f->dh.extra = NULL;
             f->dh.h.extra_length = 0;
         }else{
-            if(buf_size == f->lh.h.extra_length && !memcmp(buf, f->lh.extra, buf_size)){
+            f->dh.extra = _mrs_ref_table_append(&mrs->_reftable, buf, buf_size);
+            f->dh.h.extra_length = buf_size;
+            /*if (buf_size == f->lh.h.extra_length && !memcmp(buf, f->lh.extra, buf_size)) {
                 f->dh.extra = f->lh.extra;
             }else{
                 f->dh.extra = (char*)malloc(buf_size);
                 memcpy(f->dh.extra, buf, buf_size);
-            }
+            }*/
         }
         break;
     case MRSFI_DHCOMMENT:
-        free(f->dh.comment);
+        _mrs_ref_table_free(&mrs->_reftable, f->dh.comment);
         if(!buf || !buf_size){
             f->dh.comment = NULL;
+            f->dh.h.comment_length = 0;
         }else{
-            f->dh.comment = (char*)malloc(buf_size);
-            memcpy(f->dh.comment, buf, buf_size);
+            f->dh.comment = _mrs_ref_table_append(&mrs->_reftable, buf, buf_size);
+            f->dh.h.comment_length = buf_size;
+            /*f->dh.comment = (char*)malloc(buf_size);
+            memcpy(f->dh.comment, buf, buf_size);*/
         }
         break;
     default:
