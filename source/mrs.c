@@ -136,6 +136,17 @@ struct mrs_central_dir_hdr_ex_t{
 };
 #pragma pack()
 
+struct mrs_ref_t {
+    unsigned char* mem;
+    size_t         len;
+    unsigned       ref;
+};
+
+struct mrs_ref_table_t {
+    struct mrs_ref_t* refs;
+    size_t count;
+};
+
 struct mrs_afile_internal_t{
     const char* name; /**< File name */
     uint32_t crc32;   /**< Checksum */
@@ -161,6 +172,7 @@ struct mrs_t{
     MRS_SIGNATURE_FUNC      _sig;
     uint32_t _sigs[3]; /**< 0 being BASE HEADER, 1 being LOCAL HEADER, 2 being CENTRAL DIR HEADER */
     struct mrs_hdr_t _hdr;
+    struct mrs_ref_table_t _reftable;
     struct mrs_file_t* _files;
     union{
         FILE* _fbuf;
@@ -232,6 +244,96 @@ void mrs_file_dump(const struct mrs_file_t* f){
 /*******************************
     Internal MRS functions
 *******************************/
+
+void _mrs_ref_table_init(struct mrs_ref_table_t* r) {
+    r->refs  = NULL;
+    r->count = 0;
+}
+
+unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r, unsigned char* s, size_t len) {
+    unsigned i;
+    struct mrs_ref_t* cur;
+
+    if (!r || !s)
+        return NULL;
+    
+    for (i = 0; i < r->count; i++) {
+        cur = &r->refs[i];
+        if (cur->len == len && !memcmp(cur->mem, s, len)) {
+            dbgprintf("Found! Incrementing ref");
+            cur->ref++;
+            return cur->mem;
+        }
+    }
+
+    dbgprintf("Not found, adding a new byte stream to the ref table");
+
+    r->refs = (struct mrs_ref_t*)realloc(r->refs, sizeof(struct mrs_ref_t) * (r->count + 1));
+    cur = &r->refs[r->count];
+    cur->ref = 1;
+    cur->mem = (unsigned char*)malloc(len);
+    memcpy(cur->mem, s, len);
+    cur->len = len;
+    r->count++;
+
+    return cur->mem;
+}
+
+int _mrs_ref_table_free(struct mrs_ref_table_t* r, unsigned char* s) {
+    unsigned i;
+    struct mrs_ref_t* cur;
+
+    if (!r || !s)
+        return NULL;
+
+    for (i = 0; i < r->count; i++) {
+        cur = &r->refs[i];
+
+        if (cur->mem == s){
+            if (cur->ref > 1) {
+                dbgprintf("More than 1 reference to %p found, decrementing it...", cur->mem);
+                cur->ref--;
+                return 0;
+            }
+            dbgprintf("No more references to %p, freeing it", cur->mem);
+            free(cur->mem);
+            cur->mem = NULL;
+            cur->ref = 0;
+            cur->len = 0;
+            if (i + 1 < r->count)
+                memmove(&r->refs[i], &r->refs[i + 1], (r->count - i - 1) * sizeof(struct mrs_ref_t));
+
+            if (r->count > 1) 
+                r->refs = (struct mrs_ref_t*)realloc(r->refs, sizeof(struct mrs_ref_t) * (r->count - 1));
+            else {
+                free(r->refs);
+                r->refs = NULL;
+            }
+
+            r->count--;
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+void _mrs_ref_table_free_all(struct mrs_ref_table_t* r) {
+    unsigned i;
+    struct mrs_ref_t* cur;
+
+    for (i = 0; i < r->count; i++) {
+        cur = &r->refs[i];
+        free(cur->mem);
+        cur->mem = NULL;
+        cur->ref = 0;
+        cur->len = 0;
+    }
+
+    free(r->refs);
+    r->refs  = NULL;
+    r->count = 0;
+}
 
 void _mrs_file_free(struct mrs_file_t* f) {
     if (f->lh.filename != f->dh.filename) {
