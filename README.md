@@ -5,5 +5,4 @@ Lightweight C library for management of .MRS archives from [GunZ: The Duel](http
 ----
 
 ### **TODO**:
-- Port to Linux, at least;
-- Release dynamic libraries
+- Port to Linux, at least
