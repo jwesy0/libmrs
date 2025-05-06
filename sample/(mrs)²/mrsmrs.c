@@ -10,6 +10,8 @@
 
 #include "mrs.h"
 
+#define PROGRAM_NAME "mrsmrs.exe"
+
 typedef int (*mrsmrs_func)(const char*);
 
 struct mrsmrs_opt_t{
@@ -123,13 +125,13 @@ void mrsmrs_help(){
     printf("\n");
     printf("  .mrs files packer/unpacker v1.0 (c) by jwes, 2025\n");
     printf("                   based on \"mrs.exe\" by wad, 2005\n\n");
-    printf("  Usage: mrsmrs.exe d|c filename\n");
+    printf("  Usage: " PROGRAM_NAME " d|c filename\n");
     printf("                d - decompress archive to directory\n");
     printf("                c - compress directory to archive\n");
     printf("  Examples:\n");
-    printf("    mrsmrs.exe d system.mrs\n");
+    printf("    " PROGRAM_NAME " d system.mrs\n");
     printf("       (unpack system.mrs to directory ./system/ )\n");
-    printf("    mrsmrs.exe c system\n");
+    printf("    " PROGRAM_NAME " c system\n");
     printf("       (make system.mrs and pack files ./system/*.* to it)\n");
     printf("  Warning:\n");
     printf("    Don't leave unpacked folder and/or backup files in the GunZ directory!\n\n");
