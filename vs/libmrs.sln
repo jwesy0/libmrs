@@ -9,6 +9,8 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		Release_Dll|x64 = Release_Dll|x64
+		Release_Dll|x86 = Release_Dll|x86
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
@@ -17,6 +19,10 @@ Global
 		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Debug|x64.Build.0 = Debug|x64
 		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Debug|x86.ActiveCfg = Debug|Win32
 		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Debug|x86.Build.0 = Debug|Win32
+		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Release_Dll|x64.ActiveCfg = Release_Dll|x64
+		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Release_Dll|x64.Build.0 = Release_Dll|x64
+		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Release_Dll|x86.ActiveCfg = Release_Dll|Win32
+		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Release_Dll|x86.Build.0 = Release_Dll|Win32
 		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Release|x64.ActiveCfg = Release|x64
 		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Release|x64.Build.0 = Release|x64
 		{65AF76F1-4DA2-40DB-BF73-EE45D2B7C408}.Release|x86.ActiveCfg = Release|Win32
