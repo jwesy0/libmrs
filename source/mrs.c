@@ -884,7 +884,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
     }
     free(dhbuf);
     
-    ///TODO:Now let's read each file content and append to our MRS handle
+    ///TODO: Check for duplicates!!!
     for (i = 0; i < hdr.dir_count; i++) {
         dbgprintf("File %u is at offset %08x", i, mrsfile[i].dh.h.offset);
         temp = (char*)malloc(mrsfile[i].dh.h.compressed_size);
