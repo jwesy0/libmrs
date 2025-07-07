@@ -31,6 +31,12 @@
     <ClCompile Include="..\source\mrs.c" />
     <ClCompile Include="..\source\mrs_encryption.c" />
     <ClCompile Include="..\source\utils.c" />
+    <ClCompile Include="..\source\mrs_replace_index.c" />
+    <ClCompile Include="..\source\mrs_add.c" />
+    <ClCompile Include="..\source\mrs_dbg.c" />
+    <ClCompile Include="..\source\mrs_ref_table.c" />
+    <ClCompile Include="..\source\mrs_util.c" />
+    <ClCompile Include="..\source\mrs_save.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\dostime.h" />

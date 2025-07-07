@@ -26,6 +26,4 @@
 #define MRSE_CANNOT_UNCOMPRESS  16 /**< Error while trying to uncompress file */
 #define MRSE_END                17
 
-extern const char* mrs_error_str[];
-
 #endif
