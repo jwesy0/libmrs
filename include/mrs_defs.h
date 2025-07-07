@@ -37,7 +37,10 @@ typedef void (*MRS_PROGRESS_FUNC)(double progress, unsigned index_item, unsigned
 enum mrs_add_t{
     MRSA_FILE = 1,  /**< A file */
     MRSA_FOLDER,    /**< Files from a folder */
-    MRSA_MRS        /**< Files from a MRS archive */
+    MRSA_MRS,       /**< Files from a MRS archive */
+    MRSA_MRS2,      /**< Files from a MRS* handle */
+    MRSA_FILEP,     /**< File from a FILE pointer */
+    MRSA_MEM,       /**< File from memory buffer */
 };
 
 /**

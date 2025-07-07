@@ -7,6 +7,8 @@
 #ifndef __LIBMRS_MRS_H_
 #define __LIBMRS_MRS_H_
 
+#include <stdio.h>
+
 #include "mrs_error.h"
 #include "mrs_defs.h"
 #include "mrs_encryption.h"
@@ -29,7 +31,7 @@ LIBMRS_DLLF int mrs_set_decryption(MRS* mrs, int where, MRS_ENCRYPTION_FUNC f);
 
 LIBMRS_DLLF int mrs_set_encryption(MRS* mrs, int where, MRS_ENCRYPTION_FUNC f);
 
-LIBMRS_DLLF int mrs_add(MRS* mrs, enum mrs_add_t what, const char* name, const char* final_name, enum mrs_dupe_behavior_t on_dupe);
+LIBMRS_DLLF int mrs_add(MRS* mrs, enum mrs_add_t what, void* param1, void* param2, enum mrs_dupe_behavior_t on_dupe);
 
 LIBMRS_DLLF int mrs_set_signature(MRS* mrs, int where, uint32_t signature);
 
@@ -46,6 +48,8 @@ LIBMRS_DLLF int mrs_remove(MRS* mrs, unsigned index);
 LIBMRS_DLLF int mrs_set_file_info(MRS* mrs, unsigned index, enum mrs_file_info_t what, const void* buf, size_t buf_size);
 
 LIBMRS_DLLF int mrs_save(MRS* mrs, enum mrs_save_t type, const char* output, MRS_PROGRESS_FUNC pcallback);
+
+LIBMRS_DLLF int mrs_save_mrs_fp(MRS* mrs, FILE* output, MRS_PROGRESS_FUNC pcallback);
 
 LIBMRS_DLLF int mrs_find_file(const MRS* mrs, const char* s, unsigned* index);
 

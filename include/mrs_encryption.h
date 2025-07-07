@@ -18,9 +18,9 @@ typedef void (*MRS_ENCRYPTION_FUNC)(unsigned char*, uint32_t);
  * Indicates where signature is at
  */
 enum mrs_signature_where_t {
-    MRSSW_BASE_HDR = 1,   /**< Base header signature */
-    MRSSW_LOCAL_HDR,      /**< Local header signature */
-    MRSSW_CENTRAL_DIR_HDR /**< Central Dir header signature */
+    MRSSW_BASE_HDR        = 0x01, /**< Base header signature */
+    MRSSW_LOCAL_HDR       = 0x02, /**< Local header signature */
+    MRSSW_CENTRAL_DIR_HDR = 0x04, /**< Central Dir header signature */
 };
 
 /**

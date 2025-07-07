@@ -367,7 +367,7 @@ void _mrs_file_free(MRS* mrs, struct mrs_file_t* f) {
     dbgprintf("Freed CENTRAL DIR comment");*/
 }
 
-int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out){
+int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out, unsigned* match_index){
   char* s_temp;
   char  temp2[256];
   char* temp;
@@ -401,6 +401,8 @@ int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out){
     dbgprintf("%s", temp2);
     if(!stricmp(temp2, s) && !match){
       match = 1;
+      if(match_index)
+        *match_index = i;
       dbgprintf(" EXACT MATCH");
     }
     temp = strrchr(temp2, '.');
@@ -438,7 +440,7 @@ int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out){
     }
   }
   
-  if (n || match) {
+  if (/*n || */match) {
     if (match)
         my_num = 2;
     if (n) {
@@ -520,6 +522,18 @@ int _mrs_temp_read(MRS* mrs, unsigned char* buf, off_t offset, size_t size){
     return 1;
 }
 
+int _mrs_replace_file(MRS* mrs, struct mrs_file_t* oldf, struct mrs_file_t* newf){
+    if(!mrs)
+        return MRSE_UNITIALIZED;
+    if(!oldf || !newf)
+        return MRSE_INVALID_PARAM;
+    
+    _mrs_file_free(mrs, oldf);
+    memcpy(oldf, newf, sizeof(struct mrs_file_t));
+
+    return MRSE_OK;
+}
+
 int _mrs_add_file(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe){
     int fd;
     struct stat fs;
@@ -558,7 +572,7 @@ int _mrs_add_file(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_be
     }
 
     ///--TODO--: Check if there is a duplicate, based on final_name, and perform the specified action in on_dupe
-    if(mrs->_hdr.dir_count){
+    /*if(mrs->_hdr.dir_count){
         if(on_dupe == MRSDB_KEEP_NEW){
             for(e=0; e<mrs->_hdr.dir_count; e++){
                 ///TODO: make stricmp portable
@@ -582,6 +596,31 @@ int _mrs_add_file(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_be
                     final_name = temp;
                     temp = NULL;
                 }
+            }
+        }
+    }*/
+    if(mrs->_hdr.dir_count){
+        dup = _mrs_is_duplicate(mrs, final_name, &temp, &dup_index);
+        if(!dup){
+            dbgprintf("Found duplicate");
+            switch(on_dupe){
+            case MRSDB_KEEP_NEW:
+                dbgprintf(" Let's keep the new one");
+                free(temp);
+                temp = NULL;
+                dup = 1;
+                break;
+            case MRSDB_KEEP_OLD:
+                dbgprintf(" Let's keep the old one");
+                free(temp);
+                free(final_name);
+                return MRSE_DUPLICATE;
+            case MRSDB_KEEP_BOTH:
+                dbgprintf(" Let's keep both files");
+                free(final_name);
+                final_name = temp;
+                temp = NULL;
+                break;
             }
         }
     }
@@ -661,7 +700,8 @@ int _mrs_add_file(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_be
     ///TODO: delete the old file (base on dup_index value)
     if(dup && on_dupe == MRSDB_KEEP_NEW){
         dbgprintf("There was an old file with the same name, we are replacing it!");
-        if(mrs->_files[dup_index].lh.filename != mrs->_files[dup_index].dh.filename)
+        _mrs_replace_file(mrs, &mrs->_files[dup_index], &f);
+        /*if(mrs->_files[dup_index].lh.filename != mrs->_files[dup_index].dh.filename)
             free(mrs->_files[dup_index].lh.filename);
         if(mrs->_files[dup_index].lh.extra != mrs->_files[dup_index].dh.extra)
             free(mrs->_files[dup_index].lh.extra);
@@ -669,7 +709,7 @@ int _mrs_add_file(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_be
         free(mrs->_files[dup_index].dh.extra);
         free(mrs->_files[dup_index].dh.comment);
         // copy memory from f to replace it
-        memcpy(&mrs->_files[dup_index], &f, sizeof(struct mrs_file_t));
+        memcpy(&mrs->_files[dup_index], &f, sizeof(struct mrs_file_t));*/
     }else{
         _mrs_push_file(mrs, f);
     }
@@ -898,6 +938,8 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         dbgprintf("File dump:");
         _mrs_temp_write(mrs, temp, mrsfile[i].dh.h.compressed_size);
         _strslash(mrsfile[i].dh.filename, 0);
+        mrsfile[i].dh.h.filename_length = strlen(mrsfile[i].dh.filename);
+        mrsfile[i].lh.h.filename_length = mrsfile[i].dh.h.filename_length;
         _mrs_push_file(mrs, mrsfile[i]);
         free(temp);
     }
@@ -910,10 +952,31 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
 }
 
 #define MRS_SAVE_CALLBACK(...) if(pcallback) pcallback(__VA_ARGS__);
-int _mrs_save_mrs(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback){
-    FILE* f;
-    struct mrs_hdr_t hdr;
+int _mrs_save_mrs_fname(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback){
     char real_output[256];
+    FILE* f;
+    int e;
+    
+    GetFullPathNameA(output, 256, real_output, NULL);
+
+    if((PathFileExistsA(real_output) && PathIsDirectoryA(real_output)) || _is_valid_output_filename(real_output))
+        return MRSE_INVALID_FILENAME;
+    
+    f = fopen(real_output, "wb");
+    if(!f)
+        return MRSE_CANNOT_SAVE;
+    
+    e = _mrs_save_mrs(mrs, f, pcallback);
+
+    fclose(f);
+    
+    return e;
+}
+
+int _mrs_save_mrs(const MRS* mrs, FILE* f, MRS_PROGRESS_FUNC pcallback){
+    // FILE* f;
+    struct mrs_hdr_t hdr;
+    // char real_output[256];
     struct mrs_file_t* fil;
     unsigned char* temp;
     unsigned i, j;
@@ -923,10 +986,10 @@ int _mrs_save_mrs(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallbac
     dbgprintf("Ok let's save this as a MRS file.");
 
     ///TODO: Make it portable
-    GetFullPathNameA(output, 256, real_output, NULL);
+    // GetFullPathNameA(output, 256, real_output, NULL);
 
-    if((PathFileExistsA(real_output) && PathIsDirectoryA(real_output)) || _is_valid_output_filename(real_output))
-        return MRSE_INVALID_FILENAME;
+    // if((PathFileExistsA(real_output) && PathIsDirectoryA(real_output)) || _is_valid_output_filename(real_output))
+    //     return MRSE_INVALID_FILENAME;
 
     encrypt.base_hdr  = mrs->_enc.base_hdr ? mrs->_enc.base_hdr : mrs_default_encrypt;
     encrypt.local_hdr = mrs->_enc.local_hdr ? mrs->_enc.local_hdr : encrypt.base_hdr;
@@ -936,9 +999,9 @@ int _mrs_save_mrs(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallbac
     memcpy(&hdr, &mrs->_hdr, sizeof(struct mrs_hdr_t));
     
     dbgprintf("We got %u files", hdr.dir_count);
-    f = fopen(real_output, "wb");
-    if(!f)
-        return MRSE_CANNOT_SAVE;
+    // f = fopen(real_output, "wb");
+    // if(!f)
+    //     return MRSE_CANNOT_SAVE;
 
     fil = (struct mrs_file_t*)malloc(sizeof(struct mrs_file_t) * hdr.dir_count);
     memcpy(fil, mrs->_files, sizeof(struct mrs_file_t) * hdr.dir_count);
@@ -999,6 +1062,10 @@ int _mrs_save_mrs(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallbac
 
     hdr.dir_offset = ftell(f);
     for(i=0; i<hdr.dir_count; i++){
+        dbgprintf("%s dump", fil[i].dh.filename);
+#ifdef _LIBMRS_DBG
+        mrs_central_dir_hdr_dump(&fil[i].dh);
+#endif
         if(mrs->_sigs[2])
             fil[i].dh.h.signature = mrs->_sigs[2];
         
@@ -1031,7 +1098,7 @@ int _mrs_save_mrs(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallbac
     encrypt.base_hdr((unsigned char*)&hdr, sizeof(struct mrs_hdr_t));
     fwrite((unsigned char*)&hdr, sizeof(struct mrs_hdr_t), 1, f);
 
-    fclose(f);
+    // fclose(f);
 
     MRS_SAVE_CALLBACK(1.f, mrs->_hdr.dir_count, mrs->_hdr.dir_count, MRSP_DONE, NULL);
 
@@ -1125,6 +1192,107 @@ int _mrs_save_folder(MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback){
     return MRSE_OK;
 }
 
+struct _mrs_replace_index_t{
+    unsigned old_index;
+    unsigned new_index;
+};
+
+struct _mrs_replace_index_list_t{
+    struct _mrs_replace_index_t* indices;
+    size_t cnt;
+};
+
+void _mrs_replace_index_list_init(struct _mrs_replace_index_list_t* il){
+    il->indices = NULL;
+    il->cnt     = 0;
+}
+
+void _mrs_replace_index_list_add(struct _mrs_replace_index_list_t* il, unsigned oldi, unsigned newi){
+    size_t i = il->cnt;
+    il->indices = (struct _mrs_replace_index_t*)realloc(il->indices, (i+1)*sizeof(struct _mrs_replace_index_t));
+    il->indices[i].new_index = newi;
+    il->indices[i].old_index = oldi;
+    il->cnt++;
+}
+
+void _mrs_replace_index_list_free(struct _mrs_replace_index_list_t* il){
+    free(il->indices);
+}
+
+int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t on_dupe){
+    size_t cnt;
+    size_t i;
+    struct mrs_file_t* f;
+    int dup;
+    unsigned dup_index;
+    char* temp;
+    struct _mrs_replace_index_list il;
+
+    _mrs_replace_index_list_init(&il);
+
+    dbgprintf("Let's add files from a MRS handle");
+
+    if(!in)
+        return MRSE_INVALID_PARAM;
+
+    cnt = mrs_get_file_count(in);
+    dbgprintf("File count: %u", cnt);
+    
+    if(!cnt)
+        return MRSE_EMPTY;
+
+    f = (struct mrs_file_t*)malloc(sizeof(struct mrs_file_t) * cnt);
+    memset(f, 0, sizeof(struct mrs_file_t) * cnt);
+
+    for(i=0; i<cnt; i++){
+        dbgprintf("Adding file %u...", i);
+        dbgprintf("  Filename:  %s", in->_files[i].dh.filename);
+        dbgprintf("  File size: %u", in->_files[i].dh.h.compressed_size);
+        memcpy(&f[i], &in->_files[i], sizeof(struct mrs_file_t));
+        if(in->_files[i].dh.extra)
+            f[i].dh.extra = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].dh.extra, in->_files[i].dh.h.extra_length);
+        if(in->_files[i].dh.comment)
+            f[i].dh.comment = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].dh.comment, in->_files[i].dh.h.comment_length);
+        if(in->_files[i].lh.extra)
+            f[i].lh.extra = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].lh.extra, in->_files[i].lh.h.extra_length);
+        if(base_name){
+            f[i].dh.filename = (char*)malloc(strlen(base_name)+strlen(in->_files[i].dh.filename)+2);
+            sprintf(f[i].dh.filename, "%s/%s", base_name, in->_files[i].dh.filename);
+        }else
+            f[i].dh.filename = strdup(in->_files[i].dh.filename);
+        f[i].dh.h.filename_length = strlen(f[i].dh.filename);
+        f[i].lh.filename = f[i].dh.filename;
+        f[i].lh.h.filename_length = f[i].dh.h.filename_length;
+        dbgprintf("  Final name: %s", f[i].dh.filename);
+    }
+
+    for(i=0; i<cnt; i++){
+        dup = _mrs_is_duplicate(mrs, f[i].dh.filename, NULL, &dup_index);
+        if(!dup){
+            dbgprintf("\"%s\" is a duplicate, let's take action", f[i].dh.filename);
+            switch(on_dupe){
+            case MRSDB_KEEP_NEW:
+                _mrs_replace_index_list_add(&il, dup_index, i);
+                break;
+            case MRSDB_KEEP_OLD:
+                for(i=0; i<cnt; i++){
+                    _mrs_file_free(mrs, &f[i]);
+                    ///TODO: Free extras and comments from MRS ref table
+                }
+                _mrs_replace_index_list_free(&il);
+                free(f);
+                return MRSE_DUPLICATE;
+            case MRSDB_KEEP_BOTH:
+                _mrs_is_duplicate(mrs, f[i].dh.filename, &temp, NULL);
+                break;
+            }
+        }
+    }
+    free(f);
+
+    return MRSE_OK;
+}
+
 /*******************************
    MRS functions
 *******************************/
@@ -1210,22 +1378,24 @@ int mrs_set_encryption(MRS* mrs, int where, MRS_ENCRYPTION_FUNC f){
     return MRSE_OK;
 }
 
-int mrs_add(MRS* mrs, enum mrs_add_t what, const char* name, const char* final_name, enum mrs_dupe_behavior_t on_dupe){
+int mrs_add(MRS* mrs, enum mrs_add_t what, void* param1, void* param2, enum mrs_dupe_behavior_t on_dupe){
     dbgprintf("Let's add something!");
 
     if(!_mrs_is_initialized(mrs))
         return MRSE_UNITIALIZED;
     
-    if(!name)
+    if(!param1)
         return MRSE_INVALID_PARAM;
     
     switch(what){
     case MRSA_FILE:
-        return _mrs_add_file(mrs, name, final_name, on_dupe);
+        return _mrs_add_file(mrs, (const char*)param1, (const char*)param2, on_dupe);
     case MRSA_FOLDER:
-        return _mrs_add_folder(mrs, name, final_name ? final_name : NULL, on_dupe);
+        return _mrs_add_folder(mrs, (const char*)param1, param2 ? (const char*)param2 : NULL, on_dupe);
     case MRSA_MRS:
-        return _mrs_add_mrs(mrs, name, final_name ? final_name : NULL, on_dupe);
+        return _mrs_add_mrs(mrs, (const char*)param1, param2 ? (const char*)param2 : NULL, on_dupe);
+    case MRSA_MRS2:
+        return _mrs_add_mrs2(mrs, (MRS*)param1, param2 ? (const char*)param2 : NULL, on_dupe);
     }
 
     return MRSE_OK;
@@ -1567,10 +1737,22 @@ int mrs_save(MRS* mrs, enum mrs_save_t type, const char* output, MRS_PROGRESS_FU
 
     switch(type){
     case MRSS_MRS:
-        return _mrs_save_mrs(mrs, output, pcallback);
+        return _mrs_save_mrs_fname(mrs, output, pcallback);
     case MRSS_FOLDER:
         return _mrs_save_folder(mrs, output, pcallback);
     }
+
+    return MRSE_INVALID_PARAM;
+}
+
+int mrs_save_mrs_fp(MRS* mrs, FILE* output, MRS_PROGRESS_FUNC pcallback){
+    if(!_mrs_is_initialized(mrs))
+        return MRSE_UNITIALIZED;
+    
+    if(!output)
+        return MRSE_INVALID_PARAM;
+
+    return _mrs_save_mrs(mrs, output, pcallback);
 
     return MRSE_INVALID_PARAM;
 }
