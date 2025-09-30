@@ -25,7 +25,6 @@
 #include "zlib.h"
 #include "zconf.h"
 
-
 extern int _mrs_is_initialized(const MRS* mrs);
 extern int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out, unsigned* match_index);
 extern int _is_valid_input_filename(const char* s);
@@ -213,8 +212,10 @@ int _mrs_add_folder(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_
     char path[256];
     char temp[256];
     
-    if(!PathFileExistsA(name))
+    if(!PathFileExistsA(name)){
+        dbgprintf("Folder \"%s\" does not exist", name);
         return MRSE_NOT_FOUND;
+    }
 
     if(final_name){
         if(_is_valid_input_filename(final_name))

@@ -1,9 +1,11 @@
+/.vscode
 /vs/Release
 /vs/Debug
 /vs/libmrs
 /build
 /tests
 /doc/htm
+/doc/man
 doc/libmrs.chw
 doc/libmrs.hhk
 doc/libmrs.hhp
