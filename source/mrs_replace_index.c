@@ -12,6 +12,7 @@
 #include "mrs_internal.h"
 #include "mrs_dbg.h"
 
+       /// FROM mrs_util.c
 extern int _mrs_replace_file(MRS* mrs, struct mrs_file_t* oldf, struct mrs_file_t* newf);
 
 void _mrs_replace_index_list_dump(const struct mrs_replace_index_list_t* il){

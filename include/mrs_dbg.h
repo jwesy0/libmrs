@@ -6,9 +6,9 @@
 
 #if defined(__LIBMRS_INTERNAL__) && !defined(__LIBMRS_DBG_H_)
 #ifdef _LIBMRS_DBG
-#define dbgprintf(...) printf("%s: ", __FUNCTION__); \
-                       printf(__VA_ARGS__); \
-                       printf("\n")
+#define dbgprintf(...) fprintf(stderr, "%s: ", __FUNCTION__); \
+                       fprintf(stderr, __VA_ARGS__); \
+                       fprintf(stderr, "\n")
 #else
 #define dbgprintf(...)
 #endif

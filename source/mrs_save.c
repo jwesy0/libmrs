@@ -15,11 +15,16 @@
 #include "mrs_internal.h"
 #include "mrs_dbg.h"
 
-extern int _is_valid_output_filename(const char* s);
-extern int _strbkslash(char* s, size_t size);
-extern int _mkdirs(const char* s);
+        /// FROM utils.c
+ extern int _is_valid_output_filename(const char* s);
+        /// FROM utils.c
+ extern int _strbkslash(char* s, size_t size);
+        /// FROM utils.c
+ extern int _mkdirs(const char* s);
 #ifdef _LIBMRS_DBG
+        /// FROM utils.c
 extern void _hex_dump(const unsigned char* buf, size_t size);
+        /// FROM mrs_dbg.c
 extern void mrs_central_dir_hdr_dump(const struct mrs_central_dir_hdr_t* h);
 #else
 #define _hex_dump(...)

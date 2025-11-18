@@ -19,6 +19,7 @@ void _mrs_ref_table_init(struct mrs_ref_table_t* r) {
 }
 
 #ifdef _LIBMRS_DBG
+        /// FROM utils.c
 extern void _hex_dump(const unsigned char* buf, size_t size);
 #else
 #define _hex_dump(...)

@@ -30,6 +30,7 @@
     <ClCompile Include="..\source\dostime.c" />
     <ClCompile Include="..\source\mrs.c" />
     <ClCompile Include="..\source\mrs_encryption.c" />
+    <ClCompile Include="..\source\mrs_file.c" />
     <ClCompile Include="..\source\utils.c" />
     <ClCompile Include="..\source\mrs_replace_index.c" />
     <ClCompile Include="..\source\mrs_add.c" />
@@ -41,9 +42,11 @@
   <ItemGroup>
     <ClInclude Include="..\include\dostime.h" />
     <ClInclude Include="..\include\mrs.h" />
+    <ClInclude Include="..\include\mrs_dbg.h" />
     <ClInclude Include="..\include\mrs_defs.h" />
     <ClInclude Include="..\include\mrs_encryption.h" />
     <ClInclude Include="..\include\mrs_error.h" />
+    <ClInclude Include="..\include\mrs_internal.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

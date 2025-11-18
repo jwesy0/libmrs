@@ -17,6 +17,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <stdarg.h>
+#include <time.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -38,30 +40,88 @@
 #include "mrs_internal.h"
 #include "mrs_dbg.h"
 
-/// mrs_ref_table.c
-extern void _mrs_ref_table_init(struct mrs_ref_table_t* r);
+/*******************************
+   Extern functions
+   and variables
+*******************************/
+
+                  /// FROM mrs_ref_table.c
+          extern void _mrs_ref_table_init(struct mrs_ref_table_t* r);
+                  /// FROM mrs_ref_table.c
 extern unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r, const unsigned char* s, size_t len);
-extern int _mrs_ref_table_free(struct mrs_ref_table_t* r, unsigned char* s);
-extern void _mrs_ref_table_free_all(struct mrs_ref_table_t* r);
-/// mrs_util.c
-extern int _mrs_is_initialized(const MRS* mrs);
-extern int _mrs_temp_read(MRS* mrs, unsigned char* buf, off_t offset, size_t size);
-extern int _mrs_temp_write(MRS* mrs, unsigned char* buf, size_t size);
-extern void _mrs_file_free(MRS* mrs, struct mrs_file_t* f);
-/// utils.c
-extern int _compress_file(unsigned char* inbuf, size_t total_in, unsigned char** outbuf, size_t* total_out);
-extern int _uncompress_file(unsigned char* inbuf, size_t total_in, unsigned char* outbuf, size_t uncompressed_size, size_t* out_size);
-extern int _is_valid_input_filename(const char* s);
-extern int _strbkslash(char* s, size_t size);
-/// mrs_add.c
-extern int _mrs_add_file(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe);
-extern int _mrs_add_folder(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe);
-extern int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe);
-extern int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t on_dupe);
-/// mrs_save.c
-extern int _mrs_save_mrs_fname(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback);
-extern int _mrs_save_mrs(const MRS* mrs, FILE* f, MRS_PROGRESS_FUNC pcallback);
-extern int _mrs_save_folder(MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback);
+                  /// FROM mrs_ref_table.c
+           extern int _mrs_ref_table_free(struct mrs_ref_table_t* r, unsigned char* s);
+                  /// FROM mrs_ref_table.c
+          extern void _mrs_ref_table_free_all(struct mrs_ref_table_t* r);
+                  /// FROM mrs_util.c
+           extern int _mrs_is_initialized(const MRS* mrs);
+                  /// FROM mrs_util.c
+           extern int _mrs_temp_read(MRS* mrs, unsigned char* buf, off_t offset, size_t size);
+                  /// FROM mrs_util.c
+           extern int _mrs_temp_write(MRS* mrs, unsigned char* buf, size_t size);
+                  /// FROM mrs_file.c
+          extern void _mrs_file_free(struct mrs_file_t* f);
+                  /// FROM utils.c
+           extern int _compress_file(unsigned char* inbuf, size_t total_in, unsigned char** outbuf, size_t* total_out);
+                  /// FROM mrs_util.c
+           extern int _uncompress_file(unsigned char* inbuf, size_t total_in, unsigned char* outbuf, size_t uncompressed_size, size_t* out_size);
+                  /// FROM mrs_util.c
+           extern int _is_valid_input_filename(const char* s);
+                  /// FROM mrs_util.c
+           extern int _strbkslash(char* s, size_t size);
+                  /// FROM mrs_add.c
+           extern int _mrs_add_memory(MRS* mrs,
+                                        const void* buffer,
+                                        size_t buffer_size,
+                                        const char* name,
+                                        const time_t* timep,
+                                        void* reserved,
+                                        enum mrs_dupe_behavior_t on_dupe,
+                                        int check_name,
+                                        int check_dup,
+                                        int pushit,
+                                        struct mrs_file_t* f_out,
+                                        int* isreplace,
+                                        int* replaceindex);
+                  /// FROM mrs_add.c
+           extern int _mrs_add_filedes(MRS* mrs,
+                                        int fd,
+                                        char* filename,
+                                        void* reserved,
+                                        enum mrs_dupe_behavior_t on_dupe,
+                                        int check_name,
+                                        int check_dup,
+                                        int pushit,
+                                        struct mrs_file_t* f_out,
+                                        int* isreplace,
+                                        int* replaceindex);
+                  /// FROM mrs_add.c
+           extern int _mrs_add_file(MRS* mrs,
+                                const char* filename,
+                                char* final_name,
+                                void* reserved,
+                                enum mrs_dupe_behavior_t on_dupe,
+                                int pushit, struct mrs_file_t* f_out,
+                                int* isreplace,
+                                int* replaceindex);
+                  /// FROM mrs_add.c
+           extern int _mrs_add_folder(MRS* mrs,
+                                        const char* foldername,
+                                        char* final_name,
+                                        void* reserved,
+                                        enum mrs_dupe_behavior_t on_dupe);
+                  /// FROM mrs_add.c
+           extern int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe);
+                  /// FROM mrs_add.c
+           extern int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t on_dupe);
+                  /// FROM mrs_save.c
+           extern int _mrs_save_mrs_fname(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback);
+                  /// FROM mrs_save.c
+           extern int _mrs_save_mrs(const MRS* mrs, FILE* f, MRS_PROGRESS_FUNC pcallback);
+                  /// FROM mrs_save.c
+           extern int _mrs_save_folder(MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback);
+                  /// FROM mrs_util.c
+   extern const char* mrs_error_str[];
 
 /*******************************
    MRS functions
@@ -148,6 +208,61 @@ int mrs_set_encryption(MRS* mrs, int where, MRS_ENCRYPTION_FUNC f){
     return MRSE_OK;
 }
 
+int mrs_add(MRS* mrs, enum mrs_add_t what, enum mrs_dupe_behavior_t on_dupe, void* reserved, ...){
+    va_list a;
+    void    *par1, *par2, *par3, *par4;
+
+    dbgprintf("Let's add something!");
+
+    if(!_mrs_is_initialized(mrs))
+        return MRSE_UNITIALIZED;
+
+    va_start(a, reserved);
+
+    switch(what){
+    case MRSA_FILE:
+        dbgprintf("From file");
+        par1 = va_arg(a, const char*);
+        par2 = va_arg(a, char*);
+        return _mrs_add_file(mrs, (const char*)par1, (char*)par2, reserved, on_dupe, 1, NULL, NULL, NULL);
+    case MRSA_FOLDER:
+        dbgprintf("From directory");
+        par1 = va_arg(a, const char*);
+        par2 = va_arg(a, char*);
+        return _mrs_add_folder(mrs, (const char*)par1, (char*)par2, reserved, on_dupe);
+    case MRSA_MRS:
+        dbgprintf("From MRS archive");
+        break;
+    case MRSA_MRS2:
+        dbgprintf("From MRS handle");
+        break;
+    case MRSA_FILEPTR:
+        dbgprintf("From FILE pointer");
+        break;
+    case MRSA_FILEDES:
+        dbgprintf("From file descriptor");
+        par1 = va_arg(a, int);
+        par2 = va_arg(a, char*);
+        return _mrs_add_filedes(mrs, (int)par1, (char*)par2, reserved, on_dupe, 1, 1, 1, NULL, NULL, NULL);
+    case MRSA_MEMORY:
+        dbgprintf("From memory");
+        par1 = va_arg(a, const void*);
+        par2 = va_arg(a, size_t);
+        par3 = va_arg(a, const char*);
+        par4 = time(NULL);
+        //return _mrs_add_memory(mrs, (const void*)par1, (size_t)par2, (const char*)par3, (time_t)&par4, reserved, on_dupe, 1, 1);
+        return _mrs_add_memory(mrs, (const void*)par1, (size_t)par2, (const char*)par3, (const time_t*)&par4, reserved, on_dupe, 1, 1, 1, NULL, NULL, NULL);
+    default:
+        return MRSE_INVALID_PARAM;
+    }
+
+    return MRSE_OK;
+}
+
+/*******************************
+OLD mrs_add FUNCTION
+*******************************/
+/*
 int mrs_add(MRS* mrs, enum mrs_add_t what, void* param1, void* param2, enum mrs_dupe_behavior_t on_dupe){
     dbgprintf("Let's add something!");
 
@@ -170,6 +285,7 @@ int mrs_add(MRS* mrs, enum mrs_add_t what, void* param1, void* param2, enum mrs_
 
     return MRSE_OK;
 }
+*/
 
 int mrs_read(const MRS* mrs, unsigned index, unsigned char* buf, size_t buf_size, size_t* out_size){
     unsigned char* temp;
@@ -376,7 +492,7 @@ int mrs_remove(MRS* mrs, unsigned index){
     
     f = &mrs->_files[index];
 
-    _mrs_file_free(mrs, f);
+    _mrs_file_free(f);
 
     dbgprintf("Removing file %u", index);
 
@@ -540,7 +656,7 @@ void mrs_free(MRS* mrs){
     if(mrs->_files){
         dbgprintf("We got files, %u of them", mrs->_hdr.dir_count);
         for(i=0; i<mrs->_hdr.dir_count; i++){
-            _mrs_file_free(mrs, &mrs->_files[i]);
+            _mrs_file_free(&mrs->_files[i]);
             dbgprintf("  Freed file %u", i);
         }
         free(mrs->_files);
@@ -613,7 +729,7 @@ int mrs_global_compile(const char* name, const char* out_name, struct mrs_encryp
         mrs_set_signature(mrs, MRSSW_CENTRAL_DIR_HDR, sig->central_dir_hdr);
     }
     
-    e = mrs_add(mrs, MRSA_FOLDER, name, NULL, MRSDB_KEEP_NEW);
+    // e = mrs_add(mrs, MRSA_FOLDER, name, NULL, MRSDB_KEEP_NEW);
     if(e){
         mrs_free(mrs);
         free(real_output);
@@ -676,7 +792,7 @@ int mrs_global_decompile(const char* name, const char* out_name, struct mrs_encr
     if(sig_check)
         mrs_set_signature_check(mrs, sig_check);
     
-    e = mrs_add(mrs, MRSA_MRS, name, NULL, MRSDB_KEEP_NEW);
+    // e = mrs_add(mrs, MRSA_MRS, name, NULL, MRSDB_KEEP_NEW);
     if(e){
         mrs_free(mrs);
         free(real_output);
@@ -833,8 +949,6 @@ int mrs_global_list_free(MRSFILE f){
 /*******************************
     Other functions
 *******************************/
-
-extern const char* mrs_error_str[];
 
 const char* mrs_get_error_str(unsigned e){
     return e < MRSE_END ? mrs_error_str[e] : NULL;

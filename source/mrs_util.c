@@ -11,33 +11,24 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include "dostime.h"
 #include "mrs.h"
 #include "mrs_internal.h"
 #include "mrs_dbg.h"
 
+       /// FROM mrs_file.c
+extern void _mrs_file_free(struct mrs_file_t* f);
+       /// FROM utils.c
 extern int _get_fnum(const char* s, unsigned* n, char** offset);
 
-void _mrs_file_free(MRS* mrs, struct mrs_file_t* f) {
-    if (f->lh.filename != f->dh.filename) {
-        dbgprintf("We got different filenames between LOCAL and CENTRAL DIR headers");
-        free(f->lh.filename);
-        dbgprintf("Freed LOCAL filename");
-    }
-    free(f->dh.filename);
-    dbgprintf("Freed CENTRAL DIR filename");
-    f->lh.filename = NULL;
-    f->dh.filename = NULL;
-    f->lh.extra    = NULL;
-    f->dh.extra    = NULL;
-    f->dh.comment  = NULL;
-}
-
+/**< Checks if `mrs` is `NULL`. */
 int _mrs_is_initialized(const MRS* mrs){
   if(!mrs || !mrs->_ptr)
     return 0;
   return 1;
 }
 
+/**< Checks if there is any item with the same name as `s` in `mrs`. */
 int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out, unsigned* match_index){
   char* s_temp;
   char  temp2[256];
@@ -111,7 +102,7 @@ int _mrs_is_duplicate(const MRS* mrs, const char* s, char** s_out, unsigned* mat
     }
   }
   
-  if (/*n || */match) {
+  if (match) {
     if (match)
         my_num = 2;
     if (n) {
@@ -193,10 +184,105 @@ int _mrs_replace_file(MRS* mrs, struct mrs_file_t* oldf, struct mrs_file_t* newf
     if(!oldf || !newf)
         return MRSE_INVALID_PARAM;
     
-    _mrs_file_free(mrs, oldf);
+    _mrs_file_free(oldf);
     memcpy(oldf, newf, sizeof(struct mrs_file_t));
 
     return MRSE_OK;
+}
+
+void mrs_local_hdr(struct mrs_local_hdr_t* lh, uint32_t signature, uint16_t version,
+                   uint16_t flags, uint16_t compression, struct dostime_t filetime,
+                   uint32_t crc32, uint32_t compressed_size, uint32_t uncompressed_size,
+                   uint16_t filename_length, uint16_t extra_length)
+{
+    lh->signature         = signature;
+    lh->version           = version;
+    lh->flags             = flags;
+    lh->compression       = compression;
+    lh->filetime          = filetime;
+    lh->crc32             = crc32;
+    lh->compressed_size   = compressed_size;
+    lh->uncompressed_size = uncompressed_size;
+    lh->filename_length   = filename_length;
+    lh->extra_length      = extra_length;
+}
+
+void mrs_local_hdr_ex(struct mrs_local_hdr_ex_t* lh, uint32_t signature,
+                      uint16_t version, uint16_t flags, uint16_t compression,
+                      struct dostime_t filetime, uint32_t crc32,
+                      uint32_t compressed_size, uint32_t uncompressed_size,
+                      uint16_t filename_length, uint16_t extra_length, char* filename,
+                      char* extra)
+{
+    mrs_local_hdr(&lh->h, signature,
+                          version,
+                          flags,
+                          compression,
+                          filetime,
+                          crc32,
+                          compressed_size,
+                          uncompressed_size,
+                          filename_length,
+                          extra_length);
+    lh->filename = filename;
+    lh->extra    = extra;
+}
+
+void mrs_central_dir_hdr(struct mrs_central_dir_hdr_t* dh, uint32_t signature,
+                         uint16_t version_made, uint16_t version_needed, uint16_t flags,
+                         uint16_t compression, struct dostime_t filetime, uint32_t crc32,
+                         uint32_t compressed_size, uint32_t uncompressed_size,
+                         uint16_t filename_length, uint16_t extra_length,
+                         uint16_t comment_length, uint16_t disk_start, uint16_t int_attr,
+                         uint32_t ext_attr, uint32_t offset)
+{
+    dh->signature         = signature;
+    dh->version_made      = version_made;
+    dh->version_needed    = version_needed;
+    dh->flags             = flags;
+    dh->compression       = compression;
+    dh->filetime          = filetime;
+    dh->crc32             = crc32;
+    dh->compressed_size   = compressed_size;
+    dh->uncompressed_size = uncompressed_size;
+    dh->filename_length   = filename_length;
+    dh->extra_length      = extra_length;
+    dh->comment_length    = comment_length;
+    dh->disk_start        = disk_start;
+    dh->int_attr          = int_attr;
+    dh->ext_attr          = ext_attr;
+    dh->offset            = offset;
+}
+
+void mrs_central_dir_hdr_ex(struct mrs_central_dir_hdr_ex_t* dh, uint32_t signature,
+                            uint16_t version_made, uint16_t version_needed,
+                            uint16_t flags, uint16_t compression,
+                            struct dostime_t filetime, uint32_t crc32,
+                            uint32_t compressed_size, uint32_t uncompressed_size,
+                            uint16_t filename_length, uint16_t extra_length,
+                            uint16_t comment_length, uint16_t disk_start,
+                            uint16_t int_attr, uint32_t ext_attr, uint32_t offset,
+                            char* filename, char* extra, char* comment)
+{
+    mrs_central_dir_hdr(&dh->h, signature,
+                                version_made,
+                                version_needed,
+                                flags,
+                                compression,
+                                filetime,
+                                crc32,
+                                compressed_size,
+                                uncompressed_size,
+                                filename_length,
+                                extra_length,
+                                comment_length,
+                                disk_start,
+                                int_attr,
+                                ext_attr,
+                                offset);
+    dh->filename = filename;
+    dh->extra    = extra;
+    dh->comment  = comment;
 }
 
 const char* mrs_error_str[] = {
