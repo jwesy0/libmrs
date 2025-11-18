@@ -140,8 +140,9 @@ extern unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r,
                                       enum mrs_dupe_behavior_t on_dupe);
                   /// FROM mrs_add.c
            extern int _mrs_add_mrs(MRS* mrs,
-                                   const char* name,
+                                   const char* mrsname,
                                    char* final_name,
+                                   void* reserved,
                                    enum mrs_dupe_behavior_t on_dupe);
                   /// FROM mrs_add.c
            extern int _mrs_add_mrs2(MRS* mrs,
@@ -272,7 +273,9 @@ int mrs_add(MRS* mrs, enum mrs_add_t what, enum mrs_dupe_behavior_t on_dupe, voi
         return _mrs_add_folder(mrs, (const char*)par1, (char*)par2, reserved, on_dupe);
     case MRSA_MRS:
         dbgprintf("From MRS archive");
-        break;
+        par1 = va_arg(a, const char*);
+        par2 = va_arg(a, char*);
+        return _mrs_add_mrs(mrs, (const char*)par1, (char*)par2, reserved, on_dupe);
     case MRSA_MRS2:
         dbgprintf("From MRS handle");
         break;

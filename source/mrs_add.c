@@ -436,7 +436,7 @@ int _mrs_add_file(MRS* mrs, const char* filename, char* final_name, void* reserv
     return MRSE_OK;
 }
 
-int _mrs_add_folder(MRS* mrs, const char* foldername, char* final_name, void* reserved, enum mrs_dupe_behavior_t on_dupe) {
+int _mrs_add_folder(MRS* mrs, const char* foldername, char* base_name, void* reserved, enum mrs_dupe_behavior_t on_dupe) {
     WIN32_FIND_DATAA fda;
     HANDLE           h;
     char**           path_list;
@@ -455,8 +455,8 @@ int _mrs_add_folder(MRS* mrs, const char* foldername, char* final_name, void* re
         return MRSE_NOT_FOUND;
     }
 
-    if (final_name) {
-        if (_is_valid_input_filename(final_name))
+    if (base_name) {
+        if (_is_valid_input_filename(base_name))
             return MRSE_INVALID_FILENAME;
     }
 
@@ -497,14 +497,14 @@ int _mrs_add_folder(MRS* mrs, const char* foldername, char* final_name, void* re
                 continue;
             }
             if (i) {
-                len = _scprintf("%s%s%.*s%s", final_name ? final_name : "", final_name ? "\\" : "", strlen(path_list[i] + strlen(foldername) + 1) - 1, path_list[i] + strlen(foldername) + 1, fda.cFileName);
+                len = _scprintf("%s%s%.*s%s", base_name ? base_name : "", base_name ? "\\" : "", strlen(path_list[i] + strlen(foldername) + 1) - 1, path_list[i] + strlen(foldername) + 1, fda.cFileName);
                 temp = (char*)malloc(len + 1);
-                sprintf(temp, "%s%s%.*s%s", final_name ? final_name : "", final_name ? "\\" : "", strlen(path_list[i] + strlen(foldername) + 1) - 1, path_list[i] + strlen(foldername) + 1, fda.cFileName);
+                sprintf(temp, "%s%s%.*s%s", base_name ? base_name : "", base_name ? "\\" : "", strlen(path_list[i] + strlen(foldername) + 1) - 1, path_list[i] + strlen(foldername) + 1, fda.cFileName);
             }
             else {
-                len = _scprintf("%s%s%s", final_name ? final_name : "", final_name ? "\\" : "", fda.cFileName);
+                len = _scprintf("%s%s%s", base_name ? base_name : "", base_name ? "\\" : "", fda.cFileName);
                 temp = (char*)malloc(len + 1);
-                sprintf(temp, "%s%s%s", final_name ? final_name : "", final_name ? "\\" : "", fda.cFileName);
+                sprintf(temp, "%s%s%s", base_name ? base_name : "", base_name ? "\\" : "", fda.cFileName);
             }
             len = _scprintf("%.*s%s", strlen(path_list[i]) - 1, path_list[i], fda.cFileName);
             path = (char*)malloc(len + 1);
@@ -544,7 +544,7 @@ int _mrs_add_folder(MRS* mrs, const char* foldername, char* final_name, void* re
     for (i = 0; i < files.count; i++) {
         dbgprintf("[%s]", files.files[i].dh.filename);
         if (on_dupe == MRSDB_KEEP_NEW && ridxl.cnt) {
-            if (!_mrs_replace_index_list_do_replace(&ridxl, mrs, &files.files[0], files.count, i))
+            if (!_mrs_replace_index_list_do_replace(&ridxl, mrs, files.files, files.count, i))
                 continue;
         }
         _mrs_push_file(mrs, files.files[i]);
@@ -555,6 +555,208 @@ int _mrs_add_folder(MRS* mrs, const char* foldername, char* final_name, void* re
 
     return MRSE_OK;
 }
+
+int _mrs_add_mrs(MRS* mrs, const char* mrsname, char* base_name, void* reserved, enum mrs_dupe_behavior_t on_dupe) {
+    FILE* fp;
+    unsigned i;
+    struct mrs_hdr_t hdr;
+    struct mrs_encryption_t decrypt;
+    struct mrs_files_t ff;
+    struct mrs_file_t f;
+    unsigned char* temp;
+    unsigned char* temp2;
+    unsigned char* dhbuf;
+    unsigned dup;
+    unsigned dup_index;
+    struct mrs_replace_index_list_t ridxl;
+
+    if (base_name) {
+        if (_is_valid_input_filename(base_name)) {
+            dbgprintf("Invalid filename");
+            return MRSE_INVALID_FILENAME;
+        }
+    }
+
+    dbgprintf("Let's read a mrs file: \"%s\"", mrsname);
+
+    fp = fopen(mrsname, "rb");
+    if (!fp) {
+        dbgprintf("\"%s\" not found", mrsname);
+        return MRSE_NOT_FOUND;
+    }
+
+    decrypt.base_hdr = mrs->_dec.base_hdr ? mrs->_dec.base_hdr : mrs_default_decrypt;
+    decrypt.local_hdr = mrs->_dec.local_hdr ? mrs->_dec.local_hdr : decrypt.base_hdr;
+    decrypt.central_dir_hdr = mrs->_dec.central_dir_hdr ? mrs->_dec.central_dir_hdr : decrypt.base_hdr;
+    decrypt.buffer = mrs->_dec.buffer;
+
+    fseek(fp, -(int)sizeof(struct mrs_hdr_t), SEEK_END);
+    fread(&hdr, sizeof(struct mrs_hdr_t), 1, fp);
+
+    decrypt.base_hdr((unsigned char*)&hdr, sizeof(struct mrs_hdr_t));
+    dbgprintf("SIG = %08x", hdr.signature);
+
+    if (!mrs_default_signatures(MRSSW_BASE_HDR, hdr.signature) && (!mrs->_sig || !mrs->_sig(MRSSW_BASE_HDR, hdr.signature))) {
+        dbgprintf("  Invalid signature!");
+        fclose(fp);
+        return MRSE_INVALID_MRS;
+    }
+
+    dbgprintf("We got %u file(s)", hdr.dir_count);
+    _mrs_files_init(&ff);
+    _mrs_replace_index_list_init(&ridxl);
+    
+    dhbuf = (char*)malloc(hdr.dir_size);
+    fseek(fp, hdr.dir_offset, SEEK_SET);
+    fread(dhbuf, hdr.dir_size, 1, fp);
+    decrypt.central_dir_hdr(dhbuf, hdr.dir_size);
+
+    temp = dhbuf;
+    for (i = 0; i < hdr.dir_count; i++) {
+        memset(&f, 0, sizeof(struct mrs_file_t));
+        memcpy(&f.dh.h, temp, sizeof(struct mrs_central_dir_hdr_t));
+        dbgprintf("Central header signature = %08x", f.dh.h.signature);
+
+        if (!mrs_default_signatures(MRSSW_CENTRAL_DIR_HDR, f.dh.h.signature) && (!mrs->_sig || !mrs->_sig(MRSSW_CENTRAL_DIR_HDR, f.dh.h.signature))) {
+            dbgprintf("Invalid encryption");
+            _mrs_replace_index_list_free(&ridxl);
+            _mrs_files_destroy(&ff, 1);
+            _mrs_file_free(&f);
+            free(dhbuf);
+            fclose(fp);
+            return MRSE_INVALID_ENCRYPTION;
+        }
+
+        fseek(fp, f.dh.h.offset, SEEK_SET);
+        fread(&f.lh.h, sizeof(struct mrs_local_hdr_t), 1, fp);
+        decrypt.local_hdr((unsigned char*)&f.lh.h, sizeof(struct mrs_local_hdr_t));
+        dbgprintf("Local header sig = %08x", f.lh.h.signature);
+        mrs_local_hdr_dump(&f.lh.h);
+
+        if (!mrs_default_signatures(MRSSW_LOCAL_HDR, f.lh.h.signature) && (!mrs->_sig || !mrs->_sig(MRSSW_LOCAL_HDR, f.lh.h.signature))) {
+            dbgprintf("Invalid local header encryption");
+            _mrs_replace_index_list_free(&ridxl);
+            _mrs_files_destroy(&ff, 1);
+            _mrs_file_free(&f);
+            free(dhbuf);
+            fclose(fp);
+            return MRSE_INVALID_ENCRYPTION;
+        }
+
+        fseek(fp, f.lh.h.filename_length, SEEK_CUR);
+
+        if (f.lh.h.extra_length) {
+            dbgprintf("We have Local extra, let's copy it");
+            f.lh.extra = (char*)malloc(f.lh.h.extra_length);
+            fread(f.lh.extra, f.lh.h.extra_length, 1, fp);
+            decrypt.local_hdr(f.lh.extra, f.lh.h.extra_length);
+            temp2 = f.lh.extra;
+            f.lh.extra = _mrs_ref_table_append(&mrs->_reftable, temp2, f.lh.h.extra_length);
+            free(temp2);
+            dbgprintf("Read local header extra: got address %p", f.lh.extra);
+        }
+        else
+            fseek(fp, f.lh.h.extra_length, SEEK_CUR);
+
+        // We update our offset to the beginning of the file buffer
+        f.dh.h.offset = ftell(fp);
+
+        temp += sizeof(struct mrs_central_dir_hdr_t);
+
+        //// Reading filename
+        if (base_name) {
+            f.dh.filename = (char*)malloc(strlen(base_name) + f.dh.h.filename_length + 2);
+            memset(f.dh.filename, 0, strlen(base_name) + f.dh.h.filename_length + 2);
+            sprintf(f.dh.filename, "%s/", base_name);
+        }
+        else {
+            f.dh.filename = (char*)malloc(f.dh.h.filename_length + 1);
+            memset(f.dh.filename, 0, f.dh.h.filename_length + 1);
+        }
+        strncat(f.dh.filename, temp, f.dh.h.filename_length);
+
+        // Check duplicate
+        if (mrs->_hdr.dir_count) {
+            temp2 = NULL;
+            dup = _mrs_is_duplicate(mrs, f.dh.filename, &temp2, &dup_index);
+            if (!dup) {
+                switch (on_dupe) {
+                case MRSDB_KEEP_NEW:
+                    _mrs_replace_index_list_add(&ridxl, dup_index, i);
+                    break;
+                case MRSDB_KEEP_BOTH:
+                    free(f.dh.filename);
+                    f.dh.filename = temp2;
+                    break;
+                case MRSDB_KEEP_OLD:
+                    dbgprintf("Duplicate found!");
+                    _mrs_replace_index_list_free(&ridxl);
+                    _mrs_files_destroy(&ff, 1);
+                    _mrs_file_free(&f);
+                    free(temp2);
+                    free(dhbuf);
+                    fclose(fp);
+                    return MRSE_DUPLICATE;
+                }
+            }
+        }
+
+        f.lh.filename = f.dh.filename;
+        temp += f.dh.h.filename_length;
+
+        //// Reading Central Dir Header "extra" field (if any)
+        if (f.dh.h.extra_length) {
+            dbgprintf("We have Central Dir extra, let's copy it");
+            f.dh.extra = _mrs_ref_table_append(&mrs->_reftable, temp, f.dh.h.extra_length);
+        }
+        temp += f.dh.h.extra_length;
+
+        //// Reading Central Dir Header "comment" field (if any)
+        if (f.dh.h.comment_length) {
+            dbgprintf("We have Central Dir comment, let's copy it");
+            f.dh.comment = _mrs_ref_table_append(&mrs->_reftable, temp, f.dh.h.comment_length);
+        }
+        temp += f.dh.h.comment_length;
+
+        ///TODO: Check if compressed file buffer is valid
+
+        _mrs_files_append(&ff, &f);
+    }
+
+    free(dhbuf);
+
+    for (i = 0; i < ff.count; i++) {
+        dbgprintf("File %u is at offset %08x", i, ff.files[i].dh.h.offset);
+        temp = (char*)malloc(ff.files[i].dh.h.compressed_size);
+        fseek(fp, ff.files[i].dh.h.offset, SEEK_SET);
+        fread(temp, ff.files[i].dh.h.compressed_size, 1, fp);
+        // Decrypt the file buffer, if there's a decryption routine for it
+        if (decrypt.buffer)
+            decrypt.buffer(temp, ff.files[i].dh.h.compressed_size);
+        // We finally update our offset to the real offset in our temporary storage
+        ff.files[i].dh.h.offset = _mrs_temp_tell(mrs);
+        _mrs_temp_write(mrs, temp, ff.files[i].dh.h.compressed_size);
+        _strslash(ff.files[i].dh.filename, 0);
+        ff.files[i].dh.h.filename_length = strlen(ff.files[i].dh.filename);
+        ff.files[i].lh.h.filename_length = ff.files[i].dh.h.filename_length;
+
+        free(temp);
+        if (on_dupe == MRSDB_KEEP_NEW && ridxl.cnt) {
+            if (!_mrs_replace_index_list_do_replace(&ridxl, mrs, ff.files, ff.count, i))
+                continue;
+        }
+        _mrs_push_file(mrs, ff.files[i]);
+    }
+
+    fclose(fp);
+    _mrs_replace_index_list_free(&ridxl);
+    _mrs_files_destroy(&ff, 0);
+
+    return MRSE_OK;
+}
+
+/***************
+OLD _mrs_add_mrs FUNCTION
 
 int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe) {
     FILE* f;
@@ -678,8 +880,6 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         //// Reading Central Dir Header "extra" field (if any)
         if (mrsfile[i].dh.h.extra_length) {
             dbgprintf("We have Central Dir extra, let's copy it");
-            /*temp2 = (char*)malloc(mrsfile[i].dh.h.extra_length);
-            memcpy(mrsfile[i].dh.extra, temp, mrsfile[i].dh.h.extra_length);*/
             mrsfile[i].dh.extra = _mrs_ref_table_append(&mrs->_reftable, temp, mrsfile[i].dh.h.extra_length);
         }
         temp += mrsfile[i].dh.h.extra_length;
@@ -687,8 +887,6 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
         //// Reading Central Dir Header "comment" field (if any)
         if (mrsfile[i].dh.h.comment_length) {
             dbgprintf("We have Central Dir comment, let's copy it");
-            /*mrsfile[i].dh.comment = (char*)malloc(mrsfile[i].dh.h.comment_length);
-            memcpy(mrsfile[i].dh.comment, temp, mrsfile[i].dh.h.comment_length);*/
             mrsfile[i].dh.comment = _mrs_ref_table_append(&mrs->_reftable, temp, mrsfile[i].dh.h.comment_length);
         }
         temp += mrsfile[i].dh.h.comment_length;
@@ -720,7 +918,7 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
     fclose(f);
 
     return MRSE_OK;
-}
+}*/
 
 int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t on_dupe){
     size_t cnt;
