@@ -104,6 +104,7 @@ int _mrs_add_memory(MRS* mrs, const void* buffer, size_t buffer_size,
     unsigned          dup       = 0;
     unsigned          dup_index = 0;
     int               e;
+    time_t            timepp = timep ? *timep : time(NULL);
 
     if(!name){
         dbgprintf("name was not given, leaving...");
@@ -163,7 +164,7 @@ int _mrs_add_memory(MRS* mrs, const void* buffer, size_t buffer_size,
                             MRSV_CDIR_NEEDED,   // version needed
                             0,                  // flags
                             MRSCM_DEFLATE,      // compression method
-                            dostime(timep),     // filetime
+                            dostime(&timep),    // filetime
                             0,                  // crc32
                             0,                  // compressed size
                             buffer_size,        // uncompressed size
@@ -180,7 +181,7 @@ int _mrs_add_memory(MRS* mrs, const void* buffer, size_t buffer_size,
                     MRSV_LOCAL,                 // version
                     0,                          // flags
                     MRSCM_DEFLATE,              // compression method
-                    dostime(timep),             // filetime
+                    dostime(&timep),            // filetime
                     0,                          // crc32
                     0,                          // compressed size
                     buffer_size,                // uncompressed size
@@ -252,6 +253,7 @@ int _mrs_add_memory(MRS* mrs, const void* buffer, size_t buffer_size,
     return MRSE_OK;
 }
 
+/// TODO: Check if the file descriptor is READABLE
 int _mrs_add_filedes(MRS* mrs, int fd, char* filename, void* reserved, enum mrs_dupe_behavior_t on_dupe, int check_name, int check_dup, int pushit, struct mrs_file_t* f_out, int *isreplace, int *replaceindex){
     char*          final_name;
     unsigned       dup    = 0;
@@ -312,6 +314,68 @@ int _mrs_add_filedes(MRS* mrs, int fd, char* filename, void* reserved, enum mrs_
     return e;
 }
 
+/// TODO: Check if the file pointer is READABLE
+int _mrs_add_fileptr(MRS* mrs, FILE* fp, char* filename, void* reserved, enum mrs_dupe_behavior_t on_dupe, int check_name, int check_dup, int pushit, struct mrs_file_t* f_out, int* isreplace, int* replaceindex) {
+    int      e;
+    char* final_name;
+    unsigned dup;
+    unsigned char* buffer;
+    off_t offset;
+    size_t len;
+
+    if (!fp) {
+        dbgprintf("Invalid file pointer");
+        return MRSE_INVALID_PARAM;
+    }
+
+    if (!filename) {
+        dbgprintf("Filename not given");
+        return MRSE_INVALID_PARAM;
+    }
+
+    final_name = (char*)malloc(strlen(filename) + 1);
+    strcpy(final_name, filename);
+
+    if (check_name) {
+        _strslash(final_name, 0);
+
+        if (_is_valid_input_filename(final_name)) {
+            dbgprintf("Invalid final filename");
+            free(final_name);
+            return MRSE_INVALID_FILENAME;
+        }
+    }
+
+    if (check_dup) {
+        if (mrs->_hdr.dir_count) {
+            dup = _mrs_is_duplicate(mrs, final_name, NULL, NULL);
+            if (!dup) {
+                dbgprintf("Found duplicate!");
+                if (on_dupe == MRSDB_KEEP_OLD) {
+                    dbgprintf("Let's keep the old one");
+                    free(final_name);
+                    return MRSE_DUPLICATE;
+                }
+            }
+        }
+    }
+    
+    offset = ftell(fp);
+    fseek(fp, 0, SEEK_END);
+    len = ftell(fp) - offset;
+    fseek(fp, offset, SEEK_SET);
+    buffer = (unsigned char*)malloc(len);
+    fread(buffer, len, 1, fp);
+    fseek(fp, offset, SEEK_SET);
+
+    e = _mrs_add_memory(mrs, buffer, len, final_name, NULL, reserved, on_dupe, 0, 1, pushit, f_out, isreplace, replaceindex);
+
+    free(buffer);
+    free(final_name);
+    
+    return e;
+}
+
 int _mrs_add_file(MRS* mrs, const char* filename, char* final_name, void* reserved, enum mrs_dupe_behavior_t on_dupe, int pushit, struct mrs_file_t* f_out, int* isreplace, int* replaceindex){
     int   fd;
     char* temp = NULL;
@@ -331,7 +395,7 @@ int _mrs_add_file(MRS* mrs, const char* filename, char* final_name, void* reserv
         strcpy(temp, final_name);
         final_name = temp;
     }
-
+    
     temp = NULL;
     _strslash(final_name, 0);
 
@@ -371,158 +435,6 @@ int _mrs_add_file(MRS* mrs, const char* filename, char* final_name, void* reserv
 
     return MRSE_OK;
 }
-/*******************************
-OLD _mrs_add_file FUNCTION
-*******************************/
-/*
-int _mrs_add_file(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe){
-    int fd;
-    struct stat fs;
-    struct mrs_file_t f;
-    unsigned char* ubuf = NULL;
-    unsigned char* cbuf = NULL;
-    char* temp = NULL;
-    int e;
-    unsigned dup = 0, dup_index = 0;
-
-    dbgprintf("Adding a file");
-    
-    if(!_mrs_is_initialized(mrs)){
-      dbgprintf("mrs handle unitialized");
-      return MRSE_UNITIALIZED;
-    }
-
-    if (!final_name) {
-        final_name = (char*)malloc(strlen(name) + 1);
-        strcpy(final_name, name);
-        temp = strrchr(final_name, '/');
-        if (temp)
-            strcpy(final_name, temp + 1);
-    }
-    else {
-        temp = (char*)malloc(strlen(final_name) + 1);
-        strcpy(temp, final_name);
-        final_name = temp;
-    }
-
-    _strslash(final_name, 0);
-
-    if(_is_valid_input_filename(final_name)){
-        dbgprintf("Invalid final filename");
-        free(final_name);
-        return MRSE_INVALID_FILENAME;
-    }
-    
-    if(mrs->_hdr.dir_count){
-        dup = _mrs_is_duplicate(mrs, final_name, &temp, &dup_index);
-        if(!dup){
-            dbgprintf("Found duplicate");
-            switch(on_dupe){
-            case MRSDB_KEEP_NEW:
-                dbgprintf(" Let's keep the new one");
-                free(temp);
-                temp = NULL;
-                dup = -1;
-                break;
-            case MRSDB_KEEP_OLD:
-                dbgprintf(" Let's keep the old one");
-                free(temp);
-                free(final_name);
-                return MRSE_DUPLICATE;
-            case MRSDB_KEEP_BOTH:
-                dbgprintf(" Let's keep both files");
-                free(final_name);
-                final_name = temp;
-                temp = NULL;
-                break;
-            }
-        }
-    }
-
-    ///TODO: Is O_BINARY portable ?
-    fd = open(name, O_RDONLY|O_BINARY);
-    if(fd == -1){
-        free(temp);
-        free(final_name);
-        dbgprintf("%s: file not found", name);
-        return MRSE_NOT_FOUND;
-    }
-
-    if(fstat(fd, &fs) != 0){
-        free(temp);
-        free(final_name);
-        close(fd);
-        return MRSE_CANNOT_OPEN;
-    }
-
-    dbgprintf("Got fstat");
-    dbgprintf("Total size: %u", fs.st_size);
-
-    memset(&f, 0, sizeof(struct mrs_file_t));
-    f.dh.h.signature         = MRSM_CDIR_MAGIC1;                            // dir header signature
-    f.lh.h.signature         = MRSM_LOCAL_MAGIC1;                           // local header signature
-    f.dh.h.version_made      = MRSV_CDIR_MADE;                              // dir header version made
-    f.lh.h.version           = MRSV_LOCAL;                                  // local header version
-    f.dh.h.version_needed    = MRSV_CDIR_NEEDED;                            // dir header version needed
-    f.dh.h.compression       = MRSCM_DEFLATE;                               // dir header compression method
-    f.lh.h.uncompressed_size = f.dh.h.uncompressed_size = fs.st_size;       // dir and local header uncompressed file size
-    f.lh.h.uncompressed_size = f.dh.h.uncompressed_size = fs.st_size;       // dir and local header uncompressed file size
-    f.lh.h.filename_length   = f.dh.h.filename_length = strlen(final_name); // dir and local header filename length
-
-    f.dh.h.filetime = dostime(&fs.st_mtime);    // dir header file modification time
-    dbgprintf("Modification time: %02u:%02u:%02u %02u/%02u/%04u", f.dh.h.filetime.hour, f.dh.h.filetime.minute, f.dh.h.filetime.second*2, f.dh.h.filetime.day, f.dh.h.filetime.month, f.dh.h.filetime.year+1980);
-    f.lh.h.filetime = f.dh.h.filetime;          // local header file modification time
-
-    f.dh.h.crc32 = crc32(0L, Z_NULL, 0);
-    if(f.dh.h.uncompressed_size){
-        ubuf = (unsigned char*)malloc(f.dh.h.uncompressed_size);
-        read(fd, ubuf, f.dh.h.uncompressed_size);
-        dbgprintf("Dump: %.*s", f.dh.h.uncompressed_size, ubuf);
-        f.dh.h.crc32 = crc32(f.dh.h.crc32, ubuf, f.dh.h.uncompressed_size); // dir header file crc32 checksum
-    }
-    f.lh.h.crc32 = f.dh.h.crc32;                                            // local header file crc32 checksum
-
-    close(fd);
-    
-    if(f.dh.h.uncompressed_size){
-        e = _compress_file(ubuf, f.dh.h.uncompressed_size, &cbuf, &f.dh.h.compressed_size); // sets dir header compressed file size
-        if(!e){
-            cbuf = ubuf;
-            ubuf = NULL;
-            f.dh.h.compressed_size = f.dh.h.uncompressed_size;  // dir header compressed file size
-            f.dh.h.compression = MRSCM_STORE;                   // dir header compression method
-        }
-    }else{
-        f.dh.h.compressed_size = f.dh.h.uncompressed_size;
-        f.dh.h.compression = MRSCM_STORE;
-    }
-
-    f.lh.h.compressed_size = f.dh.h.compressed_size;    // local header compressed file size
-    f.lh.h.compression     = f.dh.h.compression;        // local header compression method
-    
-    if(ubuf)
-        free(ubuf);
-
-    f.lh.filename = f.dh.filename = final_name; // dir and local header filename
-    f.dh.h.offset = _mrs_temp_tell(mrs);        // dir header file offset
-    dbgprintf("Current temp offset: %u", _mrs_temp_tell(mrs));
-    _mrs_temp_write(mrs, cbuf, f.dh.h.compressed_size);
-    dbgprintf("Offset is now: %u", _mrs_temp_tell(mrs));
-
-    free(cbuf);
-
-    if(dup == -1 && on_dupe == MRSDB_KEEP_NEW){
-        dbgprintf("There was an old file with the same name, we are replacing it!");
-        _mrs_replace_file(mrs, &mrs->_files[dup_index], &f);
-    }else{
-        _mrs_push_file(mrs, f);
-    }
-
-    mrs_file_dump(&f);
-
-    return MRSE_OK;
-}
-*/
 
 int _mrs_add_folder(MRS* mrs, const char* foldername, char* final_name, void* reserved, enum mrs_dupe_behavior_t on_dupe) {
     WIN32_FIND_DATAA fda;
@@ -643,76 +555,6 @@ int _mrs_add_folder(MRS* mrs, const char* foldername, char* final_name, void* re
 
     return MRSE_OK;
 }
-/*******************************
-OLD _mrs_add_folder FUNCTION
-*******************************/
-/*
-///TODO: Make it portable
-int _mrs_add_folder(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe){
-    WIN32_FIND_DATAA fda;
-    HANDLE h;
-    char** path_list = NULL;
-    size_t path_list_size = 1;
-    unsigned i = 0;
-    char path[256];
-    char temp[256];
-    
-    if(!PathFileExistsA(name)){
-        dbgprintf("Folder \"%s\" does not exist", name);
-        return MRSE_NOT_FOUND;
-    }
-
-    if(final_name){
-        if(_is_valid_input_filename(final_name))
-            return MRSE_INVALID_FILENAME;
-    }
-
-    path_list = (char**)malloc(sizeof(char*));
-    path_list[0] = (char*)malloc(256);
-    sprintf(path_list[0], "%s\\*", name);
-
-    while(i < path_list_size){
-        h = FindFirstFileA(path_list[i], &fda);
-        if(h == INVALID_HANDLE_VALUE){
-            if(i == 0){
-                free(path_list[0]);
-                free(path_list);
-                return MRSE_EMPTY_FOLDER;
-            }
-            continue;
-        }
-        do{
-            if(!strcmp(fda.cFileName, ".") || !strcmp(fda.cFileName, ".."))
-                continue;
-            if(fda.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY){
-                dbgprintf("  (DIRECTORY)");
-                path_list = (char**)realloc(path_list, sizeof(char*) * (path_list_size+1));
-                path_list[path_list_size] = (char*)malloc(256);
-                sprintf(path_list[path_list_size], "%.*s\\%s\\*", strlen(path_list[i]) - 2, path_list[i], fda.cFileName);
-                dbgprintf("   > %s", path_list[path_list_size]);
-                path_list_size++;
-                continue;
-            }
-            if(i)
-                sprintf(temp, "%s%s%.*s%s", final_name ? final_name : "", final_name ? "\\" : "", strlen(path_list[i]+strlen(name)+1) - 1, path_list[i]+strlen(name)+1, fda.cFileName);
-            else
-                sprintf(temp, "%s%s%s", final_name ? final_name : "", final_name ? "\\" : "", fda.cFileName);
-            sprintf(path, "%.*s%s", strlen(path_list[i])-1, path_list[i], fda.cFileName);
-            dbgprintf("<%s>{%s}", temp, path);
-            //temp being the final name
-            //path being the real file path
-            // _mrs_add_file(mrs, path, temp, on_dupe);
-        }while(FindNextFileA(h, &fda));
-        i++;
-    }
-
-    for(i=0;i<path_list_size;i++)
-        free(path_list[i]);
-    free(path_list);
-
-    return MRSE_OK;
-}
-*/
 
 int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe) {
     FILE* f;

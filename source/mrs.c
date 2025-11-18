@@ -48,78 +48,118 @@
                   /// FROM mrs_ref_table.c
           extern void _mrs_ref_table_init(struct mrs_ref_table_t* r);
                   /// FROM mrs_ref_table.c
-extern unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r, const unsigned char* s, size_t len);
+extern unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r,
+                                            const unsigned char* s,
+                                            size_t len);
                   /// FROM mrs_ref_table.c
-           extern int _mrs_ref_table_free(struct mrs_ref_table_t* r, unsigned char* s);
+           extern int _mrs_ref_table_free(struct mrs_ref_table_t* r,
+                                          unsigned char* s);
                   /// FROM mrs_ref_table.c
           extern void _mrs_ref_table_free_all(struct mrs_ref_table_t* r);
                   /// FROM mrs_util.c
            extern int _mrs_is_initialized(const MRS* mrs);
                   /// FROM mrs_util.c
-           extern int _mrs_temp_read(MRS* mrs, unsigned char* buf, off_t offset, size_t size);
+           extern int _mrs_temp_read(MRS* mrs,
+                                     unsigned char* buf,
+                                     off_t offset,
+                                     size_t size);
                   /// FROM mrs_util.c
-           extern int _mrs_temp_write(MRS* mrs, unsigned char* buf, size_t size);
+           extern int _mrs_temp_write(MRS* mrs,
+                                      unsigned char* buf,
+                                      size_t size);
                   /// FROM mrs_file.c
           extern void _mrs_file_free(struct mrs_file_t* f);
                   /// FROM utils.c
-           extern int _compress_file(unsigned char* inbuf, size_t total_in, unsigned char** outbuf, size_t* total_out);
+           extern int _compress_file(unsigned char* inbuf,
+                                     size_t total_in,
+                                     unsigned char** outbuf,
+                                     size_t* total_out);
                   /// FROM mrs_util.c
-           extern int _uncompress_file(unsigned char* inbuf, size_t total_in, unsigned char* outbuf, size_t uncompressed_size, size_t* out_size);
+           extern int _uncompress_file(unsigned char* inbuf,
+                                       size_t total_in,
+                                       unsigned char* outbuf,
+                                       size_t uncompressed_size,
+                                       size_t* out_size);
                   /// FROM mrs_util.c
            extern int _is_valid_input_filename(const char* s);
                   /// FROM mrs_util.c
-           extern int _strbkslash(char* s, size_t size);
+           extern int _strbkslash(char* s,
+                                  size_t size);
                   /// FROM mrs_add.c
            extern int _mrs_add_memory(MRS* mrs,
-                                        const void* buffer,
-                                        size_t buffer_size,
-                                        const char* name,
-                                        const time_t* timep,
-                                        void* reserved,
-                                        enum mrs_dupe_behavior_t on_dupe,
-                                        int check_name,
-                                        int check_dup,
-                                        int pushit,
-                                        struct mrs_file_t* f_out,
-                                        int* isreplace,
-                                        int* replaceindex);
+                                      const void* buffer,
+                                      size_t buffer_size,
+                                      const char* name,
+                                      const time_t* timep,
+                                      void* reserved,
+                                      enum mrs_dupe_behavior_t on_dupe,
+                                      int check_name,
+                                      int check_dup,
+                                      int pushit,
+                                      struct mrs_file_t* f_out,
+                                      int* isreplace,
+                                      int* replaceindex);
                   /// FROM mrs_add.c
            extern int _mrs_add_filedes(MRS* mrs,
-                                        int fd,
-                                        char* filename,
-                                        void* reserved,
-                                        enum mrs_dupe_behavior_t on_dupe,
-                                        int check_name,
-                                        int check_dup,
-                                        int pushit,
-                                        struct mrs_file_t* f_out,
-                                        int* isreplace,
-                                        int* replaceindex);
+                                       int fd,
+                                       char* filename,
+                                       void* reserved,
+                                       enum mrs_dupe_behavior_t on_dupe,
+                                       int check_name,
+                                       int check_dup,
+                                       int pushit,
+                                       struct mrs_file_t* f_out,
+                                       int* isreplace,
+                                       int* replaceindex);
+                  /// FROM mrs_add.c
+           extern int _mrs_add_fileptr(MRS* mrs,
+                                       FILE* fp,
+                                       char* filename,
+                                       void* reserved,
+                                       enum mrs_dupe_behavior_t on_dupe,
+                                       int check_name,
+                                       int check_dup,
+                                       int pushit,
+                                       struct mrs_file_t* f_out,
+                                       int* isreplace,
+                                       int* replaceindex);
                   /// FROM mrs_add.c
            extern int _mrs_add_file(MRS* mrs,
-                                const char* filename,
-                                char* final_name,
-                                void* reserved,
-                                enum mrs_dupe_behavior_t on_dupe,
-                                int pushit, struct mrs_file_t* f_out,
-                                int* isreplace,
-                                int* replaceindex);
+                                    const char* filename,
+                                    char* final_name,
+                                    void* reserved,
+                                    enum mrs_dupe_behavior_t on_dupe,
+                                    int pushit, struct mrs_file_t* f_out,
+                                    int* isreplace,
+                                    int* replaceindex);
                   /// FROM mrs_add.c
            extern int _mrs_add_folder(MRS* mrs,
-                                        const char* foldername,
-                                        char* final_name,
-                                        void* reserved,
-                                        enum mrs_dupe_behavior_t on_dupe);
+                                      const char* foldername,
+                                      char* final_name,
+                                      void* reserved,
+                                      enum mrs_dupe_behavior_t on_dupe);
                   /// FROM mrs_add.c
-           extern int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_behavior_t on_dupe);
+           extern int _mrs_add_mrs(MRS* mrs,
+                                   const char* name,
+                                   char* final_name,
+                                   enum mrs_dupe_behavior_t on_dupe);
                   /// FROM mrs_add.c
-           extern int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t on_dupe);
+           extern int _mrs_add_mrs2(MRS* mrs,
+                                    MRS* in,
+                                    char* base_name,
+                                    enum mrs_dupe_behavior_t on_dupe);
                   /// FROM mrs_save.c
-           extern int _mrs_save_mrs_fname(const MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback);
+           extern int _mrs_save_mrs_fname(const MRS* mrs,
+                                          const char* output,
+                                          MRS_PROGRESS_FUNC pcallback);
                   /// FROM mrs_save.c
-           extern int _mrs_save_mrs(const MRS* mrs, FILE* f, MRS_PROGRESS_FUNC pcallback);
+           extern int _mrs_save_mrs(const MRS* mrs,
+                                    FILE* f,
+                                    MRS_PROGRESS_FUNC pcallback);
                   /// FROM mrs_save.c
-           extern int _mrs_save_folder(MRS* mrs, const char* output, MRS_PROGRESS_FUNC pcallback);
+           extern int _mrs_save_folder(MRS* mrs,
+                                       const char* output,
+                                       MRS_PROGRESS_FUNC pcallback);
                   /// FROM mrs_util.c
    extern const char* mrs_error_str[];
 
@@ -238,7 +278,9 @@ int mrs_add(MRS* mrs, enum mrs_add_t what, enum mrs_dupe_behavior_t on_dupe, voi
         break;
     case MRSA_FILEPTR:
         dbgprintf("From FILE pointer");
-        break;
+        par1 = va_arg(a, FILE*);
+        par2 = va_arg(a, char*);
+        return _mrs_add_fileptr(mrs, (FILE*)par1, (char*)par2, reserved, on_dupe, 1, 1, 1, NULL, NULL, NULL);
     case MRSA_FILEDES:
         dbgprintf("From file descriptor");
         par1 = va_arg(a, int);
