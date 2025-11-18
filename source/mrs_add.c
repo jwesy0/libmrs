@@ -682,6 +682,7 @@ int _mrs_add_mrs(MRS* mrs, const char* mrsname, char* base_name, void* reserved,
             if (!dup) {
                 switch (on_dupe) {
                 case MRSDB_KEEP_NEW:
+                    free(temp2);
                     _mrs_replace_index_list_add(&ridxl, dup_index, i);
                     break;
                 case MRSDB_KEEP_BOTH:
@@ -693,8 +694,8 @@ int _mrs_add_mrs(MRS* mrs, const char* mrsname, char* base_name, void* reserved,
                     _mrs_replace_index_list_free(&ridxl);
                     _mrs_files_destroy(&ff, 1);
                     _mrs_file_free(&f);
-                    free(temp2);
                     free(dhbuf);
+                    free(temp2);
                     fclose(fp);
                     return MRSE_DUPLICATE;
                 }
@@ -920,10 +921,11 @@ int _mrs_add_mrs(MRS* mrs, const char* name, char* final_name, enum mrs_dupe_beh
     return MRSE_OK;
 }*/
 
-int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t on_dupe){
+int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, void* reserved, enum mrs_dupe_behavior_t on_dupe){
     size_t cnt;
     size_t i;
-    struct mrs_file_t* f;
+    struct mrs_files_t ff;
+    struct mrs_file_t f;
     int dup;
     unsigned dup_index;
     char* temp;
@@ -933,7 +935,7 @@ int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t o
 
     dbgprintf("Let's add files from a MRS handle");
 
-    if(!in)
+    if (!in)
         return MRSE_INVALID_PARAM;
 
     cnt = mrs_get_file_count(in);
@@ -942,75 +944,73 @@ int _mrs_add_mrs2(MRS* mrs, MRS* in, char* base_name, enum mrs_dupe_behavior_t o
     if(!cnt)
         return MRSE_EMPTY;
 
-    f = (struct mrs_file_t*)malloc(sizeof(struct mrs_file_t) * cnt);
-    memset(f, 0, sizeof(struct mrs_file_t) * cnt);
-
+    _mrs_files_init(&ff);
     for(i=0; i<cnt; i++){
+        memset(&f, 0, sizeof(struct mrs_file_t));
         dbgprintf("Adding file %u...", i);
         dbgprintf("  Filename:  %s", in->_files[i].dh.filename);
         dbgprintf("  File size: %u", in->_files[i].dh.h.compressed_size);
-        memcpy(&f[i], &in->_files[i], sizeof(struct mrs_file_t));
+        memcpy(&f, &in->_files[i], sizeof(struct mrs_file_t));
         if(in->_files[i].dh.extra)
-            f[i].dh.extra = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].dh.extra, in->_files[i].dh.h.extra_length);
+            f.dh.extra = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].dh.extra, in->_files[i].dh.h.extra_length);
         if(in->_files[i].dh.comment)
-            f[i].dh.comment = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].dh.comment, in->_files[i].dh.h.comment_length);
+            f.dh.comment = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].dh.comment, in->_files[i].dh.h.comment_length);
         if(in->_files[i].lh.extra)
-            f[i].lh.extra = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].lh.extra, in->_files[i].lh.h.extra_length);
+            f.lh.extra = _mrs_ref_table_append(&mrs->_reftable, in->_files[i].lh.extra, in->_files[i].lh.h.extra_length);
         if(base_name){
-            f[i].dh.filename = (char*)malloc(strlen(base_name)+strlen(in->_files[i].dh.filename)+2);
-            sprintf(f[i].dh.filename, "%s/%s", base_name, in->_files[i].dh.filename);
+            f.dh.filename = (char*)malloc(strlen(base_name)+strlen(in->_files[i].dh.filename)+2);
+            sprintf(f.dh.filename, "%s/%s", base_name, in->_files[i].dh.filename);
         }else
-            f[i].dh.filename = strdup(in->_files[i].dh.filename);
-        f[i].dh.h.filename_length = strlen(f[i].dh.filename);
-        f[i].lh.filename = f[i].dh.filename;
-        f[i].lh.h.filename_length = f[i].dh.h.filename_length;
-        dbgprintf("  Final name: %s", f[i].dh.filename);
-    }
+            f.dh.filename = strdup(in->_files[i].dh.filename);
+        dbgprintf("  Final name: %s", f.dh.filename);
 
-    /// Find duplicates
-    for(i=0; i<cnt; i++){
-        dup = _mrs_is_duplicate(mrs, f[i].dh.filename, NULL, &dup_index);
-        if(!dup){
-            dbgprintf("\"%s\" is a duplicate, let's take action", f[i].dh.filename);
-            switch(on_dupe){
-            case MRSDB_KEEP_NEW:
-                _mrs_replace_index_list_add(&il, dup_index, i);
-                break;
-            case MRSDB_KEEP_OLD:
-                for(i=0; i<cnt; i++){
-                    _mrs_file_free(&f[i]);
-                    ///TODO: Free extras and comments from MRS ref table
+        if (mrs->_hdr.dir_count) {
+            dup = _mrs_is_duplicate(mrs, f.dh.filename, &temp, &dup_index);
+            if (!dup) {
+                dbgprintf("Duplicate found");
+                switch (on_dupe) {
+                case MRSDB_KEEP_NEW:
+                    free(temp);
+                    _mrs_replace_index_list_add(&il, dup_index, i);
+                    break;
+                case MRSDB_KEEP_OLD:
+                    _mrs_files_destroy(&ff, 1);
+                    _mrs_file_free(&f);
+                    _mrs_replace_index_list_free(&il);
+                    free(temp);
+                    return MRSE_DUPLICATE;
+                case MRSDB_KEEP_BOTH:
+                    free(f.dh.filename);
+                    f.dh.filename = temp;
+                    break;
                 }
-                _mrs_replace_index_list_free(&il);
-                free(f);
-                return MRSE_DUPLICATE;
-            case MRSDB_KEEP_BOTH:
-                _mrs_is_duplicate(mrs, f[i].dh.filename, &temp, NULL);
-                free(f[i].dh.filename);
-                f[i].dh.filename = temp;
-                break;
             }
         }
+
+        f.dh.h.filename_length = strlen(f.dh.filename);
+        f.lh.filename = f.dh.filename;
+        f.lh.h.filename_length = f.dh.h.filename_length;
+
+        _mrs_files_append(&ff, &f);
     }
 
     for(i=0; i<cnt; i++){
-        temp = (char*)malloc(f[i].dh.h.compressed_size);
-        _mrs_temp_read(in, temp, f[i].dh.h.offset, f[i].dh.h.compressed_size);
-        f[i].dh.h.offset = _mrs_temp_tell(mrs);
-        _mrs_temp_write(mrs, temp, f[i].dh.h.compressed_size);
+        temp = (char*)malloc(ff.files[i].dh.h.compressed_size);
+        _mrs_temp_read(in, temp, ff.files[i].dh.h.offset, ff.files[i].dh.h.compressed_size);
+        ff.files[i].dh.h.offset = _mrs_temp_tell(mrs);
+        _mrs_temp_write(mrs, temp, ff.files[i].dh.h.compressed_size);
         free(temp);
         if(on_dupe == MRSDB_KEEP_NEW && il.cnt){
             dbgprintf("Searching replace indices...");
             _mrs_replace_index_list_dump(&il);
-            if(!_mrs_replace_index_list_do_replace(&il, mrs, f, cnt, i))
+            if(!_mrs_replace_index_list_do_replace(&il, mrs, ff.files, cnt, i))
                 continue;
         }
-        _mrs_push_file(mrs, f[i]);
-        // _mrs_temp_read(in, temp, f[i].dh.h.offset, f[i].dh.h.compressed_size);
+        _mrs_push_file(mrs, ff.files[i]);
     }
     
+    _mrs_files_destroy(&ff, 0);
     _mrs_replace_index_list_free(&il);
-    free(f);
 
     return MRSE_OK;
 }

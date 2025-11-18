@@ -148,6 +148,7 @@ extern unsigned char* _mrs_ref_table_append(struct mrs_ref_table_t* r,
            extern int _mrs_add_mrs2(MRS* mrs,
                                     MRS* in,
                                     char* base_name,
+                                    void* reserved,
                                     enum mrs_dupe_behavior_t on_dupe);
                   /// FROM mrs_save.c
            extern int _mrs_save_mrs_fname(const MRS* mrs,
@@ -278,6 +279,9 @@ int mrs_add(MRS* mrs, enum mrs_add_t what, enum mrs_dupe_behavior_t on_dupe, voi
         return _mrs_add_mrs(mrs, (const char*)par1, (char*)par2, reserved, on_dupe);
     case MRSA_MRS2:
         dbgprintf("From MRS handle");
+        par1 = va_arg(a, MRS*);
+        par2 = va_arg(a, char*);
+        return _mrs_add_mrs2(mrs, (MRS*)par1, (char*)par2, reserved, on_dupe);
         break;
     case MRSA_FILEPTR:
         dbgprintf("From FILE pointer");
