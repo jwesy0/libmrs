@@ -81,6 +81,8 @@ LIBMRS_DLLF size_t mrs_get_file_count(const MRS* mrs);
 
 LIBMRS_DLLF void mrs_free(MRS* mrs);
 
+LIBMRS_DLLF int mrs_global_verify(const char* filename, const struct mrs_encryption_t* decryption, MRS_SIGNATURE_FUNC sigcheck);
+
 LIBMRS_DLLF int mrs_global_compile(const char* name, const char* out_name, struct mrs_encryption_t* encryption, struct mrs_signature_t* sig, MRS_PROGRESS_FUNC pcallback);
 
 LIBMRS_DLLF int mrs_global_decompile(const char* name, const char* out_name, struct mrs_encryption_t* decryption, MRS_SIGNATURE_FUNC sig_check, MRS_PROGRESS_FUNC pcallback);

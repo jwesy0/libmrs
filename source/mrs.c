@@ -730,6 +730,48 @@ void mrs_free(MRS* mrs){
    Global MRS functions
 *******************************/
 
+///NOTE: Needs to test the encryption of HEADER, LOCAL HEADER and CENTRAL DIR HEADER,
+///      should also test the compressed buffer of at least one file stored in the MRS archive.
+int mrs_global_verify(const char* filename, const struct mrs_encryption_t* decryption, MRS_SIGNATURE_FUNC sigcheck){
+    struct mrs_hdr_t hdr;
+    struct mrs_encryption_t dec;
+    FILE* fp;
+    
+    if(decryption){
+        dec.base_hdr        = decryption->base_hdr        ? decryption->base_hdr        : mrs_default_decrypt;
+        dec.local_hdr       = decryption->local_hdr       ? decryption->local_hdr       : dec.base_hdr;
+        dec.central_dir_hdr = decryption->central_dir_hdr ? decryption->central_dir_hdr : dec.base_hdr;
+        dec.buffer          = decryption->buffer          ? decryption->buffer          : NULL;
+    }else{
+        dec.base_hdr        = mrs_default_decrypt;
+        dec.local_hdr       = dec.base_hdr;
+        dec.central_dir_hdr = dec.base_hdr;
+        dec.buffer          = NULL;
+    }
+    
+    dbgprintf("filename = %s", filename);
+    
+    fp = fopen(filename, "rb");
+    if(!fp){
+        dbgprintf(" file not found or cannot be opened");
+        return MRSE_NOT_FOUND;
+    }
+    
+    fseek(fp, -(int)sizeof(struct mrs_hdr_t), SEEK_END);
+    fread(&hdr, sizeof(struct mrs_hdr_t), 1, fp);
+    dec.base_hdr((unsigned char*)&hdr, sizeof(struct mrs_hdr_t));
+    dbgprintf("signature = %08x", hdr.signature);
+    
+    if(!mrs_default_signatures(MRSSW_BASE_HDR, hdr.signature) && (!sigcheck || !sigcheck(MRSSW_BASE_HDR, hdr.signature))){
+        dbgprintf("  invalid signature");
+        return MRSE_INVALID_MRS;
+    }
+    
+    fclose(fp);
+
+    return MRSE_OK;
+}
+
 int mrs_global_compile(const char* name, const char* out_name, struct mrs_encryption_t* encryption, struct mrs_signature_t* sig, MRS_PROGRESS_FUNC pcallback){
     char* real_output;
     char* temp;
